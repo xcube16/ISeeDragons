@@ -52,6 +52,7 @@ dependencies {
 jar {
     manifest {
         attributes 'FMLCorePlugin': 'io.github.xcube16.iseedragons.FMLCorePlugin'
+        attributes 'FMLCorePluginContainsFMLMod': true
     }
 }
 
