@@ -11,11 +11,11 @@ import org.apache.logging.log4j.Logger;
 
 import java.lang.reflect.Field;
 
-@Mod(modid=DummyMod.MODID, version = DummyMod.VERSION, acceptableRemoteVersions = "*", name = DummyMod.NAME)
-public class DummyMod {
+@Mod(modid= ISeeDragons.MODID, version = ISeeDragons.VERSION, acceptableRemoteVersions = "*", name = ISeeDragons.NAME)
+public class ISeeDragons {
     public static final String MODID = "iseedragons";
     public static final String NAME = "ISeeDragons";
-    public static final String VERSION = "0.1";
+    public static final String VERSION = "0.2";
     public static final Logger logger = LogManager.getLogger(NAME);
 
     @Mod.EventHandler
