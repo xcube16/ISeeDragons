@@ -25,6 +25,7 @@ import org.apache.logging.log4j.Logger;
 import javax.annotation.Nullable;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.util.Optional;
 
 @Mod(modid= ISeeDragons.MODID, version = ISeeDragons.VERSION, acceptableRemoteVersions = "*", name = ISeeDragons.NAME)
 public class ISeeDragons {
@@ -53,12 +54,13 @@ public class ISeeDragons {
                     (BiMap<Class<? extends Entity>, EntityRegistry.EntityRegistration>)regField.get(EntityRegistry.instance());
             for (EntityRegistry.EntityRegistration entity : reg.values()) {
                 //logger.info(entity.getRegistryName().toString());
-                if (this.isDragon(entity.getRegistryName())) {
+                Optional boost = this.getRenderBoost(entity.getRegistryName());
+                if (boost.isPresent()) {
                     foundOne = true;
                     logger.info("Fixed " + entity.getRegistryName() + " tracking distance");
                     Field rangeField = entity.getClass().getDeclaredField("trackingRange");
                     rangeField.setAccessible(true);
-                    rangeField.set(entity, 256);
+                    rangeField.set(entity, boost.get());
                 }
             }
         } catch (Exception e) {
@@ -163,6 +165,19 @@ public class ISeeDragons {
                 logger.error("Failed to wake up Ice and Fire dragon", ex);
             }
         }
+    }
+
+    private Optional<Integer> getRenderBoost(@Nullable ResourceLocation id) {
+        if (id == null) {
+            return Optional.empty();
+        } else if (this.isDragon(id)) {
+            return Optional.of(256);
+        } else if (id.getResourcePath().equals("seaserpent")) {
+            return Optional.of(256);
+        } else if (id.getResourcePath().equals("golem") && id.getResourceDomain().equals("battletowers")) {
+            return Optional.of(256);
+        }
+        return Optional.empty();
     }
 
     private boolean isDragon(@Nullable ResourceLocation id) {
