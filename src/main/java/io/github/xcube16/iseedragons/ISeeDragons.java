@@ -3,6 +3,9 @@ package io.github.xcube16.iseedragons;
 import com.google.common.collect.BiMap;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityList;
+import net.minecraft.item.Item;
+import net.minecraft.item.ItemArmor;
+import net.minecraft.item.ItemStack;
 import net.minecraft.util.ResourceLocation;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.entity.living.LivingAttackEvent;
@@ -11,6 +14,8 @@ import net.minecraftforge.fml.common.event.FMLInitializationEvent;
 import net.minecraftforge.fml.common.event.FMLPostInitializationEvent;
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
 import net.minecraftforge.fml.common.registry.EntityRegistry;
+import net.minecraftforge.fml.common.registry.GameRegistry;
+import net.minecraftforge.oredict.OreDictionary;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -59,6 +64,33 @@ public class ISeeDragons {
         if (!foundOne) {
             logger.warn("No Ice and Fire dragons found! Is it installed?");
         }
+
+        logger.info("Fixing sea serpent armor repair...");
+        try {
+            Class enumSeaSerpent = Class.forName("com.github.alexthe666.iceandfire.enums.EnumSeaSerpent");
+            Object[] values = (Object[]) enumSeaSerpent.getDeclaredMethod("values").invoke(null);
+            Field armorMaterialField = enumSeaSerpent.getDeclaredField("armorMaterial");
+            Field scaleField = enumSeaSerpent.getDeclaredField("scale");
+            for (Object serpent : values) {
+                ItemArmor.ArmorMaterial material = ((ItemArmor.ArmorMaterial) armorMaterialField.get(serpent));
+                material.setRepairItem(new ItemStack((Item) scaleField.get(serpent)));
+                logger.info("Fixed " + material);
+            }
+        } catch (ClassNotFoundException e) {
+            logger.warn("Could not find " + e.getMessage() + " while trying to fix sea serpent armor");
+        } catch (Exception e) {
+            logger.error("Failed to fix sea serpent armor", e);
+        }
+
+        // TODO: \/ get this working \/
+        /*logger.info("Fixing Icd and Fire axes");
+        OreDictionary.registerOre("toolAxe", Item.getByNameOrId("iceandfire:dragonbone_axe"));
+        OreDictionary.registerOre("toolAxe", Item.getByNameOrId("iceandfire:myrmex_desert_axe"));
+        OreDictionary.registerOre("toolAxe", Item.getByNameOrId("iceandfire:myrmex_jungle_axe"));
+        OreDictionary.registerOre("toolAxe", Item.getByNameOrId("iceandfire:silver_axe"));
+        OreDictionary.registerOre("toolAxe", Item.getByNameOrId("iceandfire:dragonsteel_fire_axe"));
+        OreDictionary.registerOre("toolAxe", Item.getByNameOrId("iceandfire:dragonsteel_ice_axe"));
+        logger.info("Done fixing Ice and Fire");*/
     }
 
     @SubscribeEvent
