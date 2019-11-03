@@ -8,10 +8,13 @@ import net.minecraft.item.ItemArmor;
 import net.minecraft.item.ItemStack;
 import net.minecraft.util.ResourceLocation;
 import net.minecraftforge.common.MinecraftForge;
+import net.minecraftforge.event.RegistryEvent;
 import net.minecraftforge.event.entity.living.LivingAttackEvent;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.common.event.FMLInitializationEvent;
 import net.minecraftforge.fml.common.event.FMLPostInitializationEvent;
+import net.minecraftforge.fml.common.event.FMLPreInitializationEvent;
+import net.minecraftforge.fml.common.eventhandler.EventPriority;
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
 import net.minecraftforge.fml.common.registry.EntityRegistry;
 import net.minecraftforge.fml.common.registry.GameRegistry;
@@ -34,7 +37,7 @@ public class ISeeDragons {
     private Method dragonSetSleeping;
 
     @Mod.EventHandler
-    public void init(FMLInitializationEvent event)
+    public void preinit(FMLPreInitializationEvent event)
     {
         MinecraftForge.EVENT_BUS.register(this);
     }
@@ -81,16 +84,67 @@ public class ISeeDragons {
         } catch (Exception e) {
             logger.error("Failed to fix sea serpent armor", e);
         }
+    }
 
-        // TODO: \/ get this working \/
-        /*logger.info("Fixing Icd and Fire axes");
+    @SubscribeEvent(priority = EventPriority.LOW) // run after Ice and Fire
+    public void registerItems(RegistryEvent.Register<Item> event) {
+        logger.info("Fixing Ice and Fire axes");
         OreDictionary.registerOre("toolAxe", Item.getByNameOrId("iceandfire:dragonbone_axe"));
         OreDictionary.registerOre("toolAxe", Item.getByNameOrId("iceandfire:myrmex_desert_axe"));
         OreDictionary.registerOre("toolAxe", Item.getByNameOrId("iceandfire:myrmex_jungle_axe"));
         OreDictionary.registerOre("toolAxe", Item.getByNameOrId("iceandfire:silver_axe"));
-        OreDictionary.registerOre("toolAxe", Item.getByNameOrId("iceandfire:dragonsteel_fire_axe"));
-        OreDictionary.registerOre("toolAxe", Item.getByNameOrId("iceandfire:dragonsteel_ice_axe"));
-        logger.info("Done fixing Ice and Fire");*/
+        //OreDictionary.registerOre("toolAxe", Item.getByNameOrId("iceandfire:dragonsteel_fire_axe"));
+        //OreDictionary.registerOre("toolAxe", Item.getByNameOrId("iceandfire:dragonsteel_ice_axe"));
+
+        logger.info("Fixing broken Ice and Fire OreDictionary entries. (all that ore dictionary spam that you can now ignore!)");
+        OreDictionary.registerOre("ingotSilver",   Item.getByNameOrId("iceandfire:silver_ingot"));
+        OreDictionary.registerOre("nuggetSilver",  Item.getByNameOrId("iceandfire:silver_nugget"));
+        OreDictionary.registerOre("oreSilver",     Item.getByNameOrId("iceandfire:silver_ore"));
+        OreDictionary.registerOre("blockSilver",   Item.getByNameOrId("iceandfire:silver_block"));
+        OreDictionary.registerOre("gemSapphire",   Item.getByNameOrId("iceandfire:sapphire_gem"));
+        OreDictionary.registerOre("oreSapphire",   Item.getByNameOrId("iceandfire:sapphire_ore"));
+        OreDictionary.registerOre("blockSapphire", Item.getByNameOrId("iceandfire:sapphire_block"));
+        OreDictionary.registerOre("boneWither",    Item.getByNameOrId("iceandfire:witherbone"));
+        /*OreDictionary.registerOre("woolBlock", new ItemStack(Blocks.field_150325_L, 1, 32767));
+        OreDictionary.registerOre("foodMeat", Items.field_151076_bf);
+        OreDictionary.registerOre("foodMeat", Items.field_151077_bg);
+        OreDictionary.registerOre("foodMeat", Items.field_151082_bd);
+        OreDictionary.registerOre("foodMeat", Items.field_151083_be);
+        OreDictionary.registerOre("foodMeat", Items.field_151147_al);
+        OreDictionary.registerOre("foodMeat", Items.field_151157_am);
+        OreDictionary.registerOre("foodMeat", Items.field_179561_bm);
+        OreDictionary.registerOre("foodMeat", Items.field_179557_bn);
+        OreDictionary.registerOre("foodMeat", Items.field_179558_bo);
+        OreDictionary.registerOre("foodMeat", Items.field_179559_bp);*/
+        OreDictionary.registerOre("boneWithered",  Item.getByNameOrId("iceandfire:witherbone"));
+        OreDictionary.registerOre("boneDragon",    Item.getByNameOrId("iceandfire:dragonbone"));
+        try {
+            Class enumSeaSerpent = Class.forName("com.github.alexthe666.iceandfire.enums.EnumSeaSerpent");
+            Object[] values = (Object[]) enumSeaSerpent.getDeclaredMethod("values").invoke(null);
+            Field scaleField = enumSeaSerpent.getDeclaredField("scale");
+            for (Object serpent : values) {
+                OreDictionary.registerOre("seaSerpentScales", (Item) scaleField.get(serpent));
+            }
+        } catch (ClassNotFoundException e) {
+            logger.warn("Could not find " + e.getMessage() + " while trying to fix sea serpent scales ore dictionary");
+        } catch (Exception e) {
+            logger.error("Failed register sea serpent scales in ore dictionary", e);
+        }
+
+        this.registerEgg(Item.getByNameOrId("iceandfire:hippogryph_egg"));
+        //this.registerEgg(Item.getByNameOrId("iceandfire:deathworm_egg"));
+        this.registerEgg(Item.getByNameOrId("iceandfire:myrmex_jungle_egg"));
+        this.registerEgg(Item.getByNameOrId("iceandfire:myrmex_desert_egg"));
+        logger.info("Done fixing Ice and Fire ore dictionary");
+    }
+
+    private void registerEgg(Item egg) {
+        OreDictionary.registerOre("listAllEgg",    new ItemStack(egg, 1, 32767));
+        OreDictionary.registerOre("objectEgg",     new ItemStack(egg, 1, 32767));
+        OreDictionary.registerOre("bakingEgg",     new ItemStack(egg, 1, 32767));
+        OreDictionary.registerOre("egg",           new ItemStack(egg, 1, 32767));
+        OreDictionary.registerOre("ingredientEgg", new ItemStack(egg, 1, 32767));
+        OreDictionary.registerOre("foodSimpleEgg", new ItemStack(egg, 1, 32767));
     }
 
     @SubscribeEvent
