@@ -1,12 +1,17 @@
 package io.github.xcube16.iseedragons;
 
 import com.google.common.collect.BiMap;
+import net.minecraft.block.Block;
+import net.minecraft.block.state.IBlockState;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityList;
+import net.minecraft.init.Blocks;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemArmor;
 import net.minecraft.item.ItemStack;
 import net.minecraft.util.ResourceLocation;
+import net.minecraft.util.math.BlockPos;
+import net.minecraft.world.World;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.RegistryEvent;
 import net.minecraftforge.event.entity.living.LivingAttackEvent;
@@ -31,7 +36,7 @@ import java.util.Optional;
 public class ISeeDragons {
     public static final String MODID = "iseedragons";
     public static final String NAME = "ISeeDragons";
-    public static final String VERSION = "0.3";
+    public static final String VERSION = "0.4-SNAPSHOT";
     public static final Logger logger = LogManager.getLogger(NAME);
 
     @Nullable // lazy init
@@ -138,6 +143,51 @@ public class ISeeDragons {
         this.registerEgg(Item.getByNameOrId("iceandfire:myrmex_jungle_egg"));
         this.registerEgg(Item.getByNameOrId("iceandfire:myrmex_desert_egg"));
         logger.info("Done fixing Ice and Fire ore dictionary");
+    }
+
+    @GameRegistry.ObjectHolder("iceandfire:ash")
+    public static Block iceandfireAsh;
+    @GameRegistry.ObjectHolder("iceandfire:chared_stone")
+    public static Block iceandfireCharedStone;
+
+    /**
+     * This method is called by EntityDragonBase from ASMed code! Don't change its signature!
+     *
+     * @param pos
+     * @param world
+     * @param state
+     * @return dummy value
+     */
+    public static boolean dragonBreakBlockHook(World world, BlockPos pos, IBlockState state) {
+        // hard coded stuff for now
+        boolean shouldDrop = true;
+        Block block = state.getBlock();
+        if (block == Blocks.STONE ||
+            block == iceandfireAsh ||
+            block == iceandfireCharedStone) {
+            shouldDrop = world.rand.nextInt(100) < 2; // 2%
+        } else if (block == Blocks.DIRT ||
+                   block == Blocks.GRASS ||
+                   block == Blocks.SAND ||
+                   block == Blocks.COBBLESTONE) {
+            shouldDrop = world.rand.nextInt(100) < 3; // 4%
+        }
+
+        if (!block.isAir(state, world, pos)) {
+
+            if ((block != Blocks.STONE && block != Blocks.DIRT) || world.rand.nextInt(100) < 5) { // 5% chance for stone, 100% for else
+                world.playEvent(2001, pos, Block.getStateId(state));
+            }
+
+            if (shouldDrop)
+            {
+                block.dropBlockAsItem(world, pos, state, 0);
+            }
+
+            return world.setBlockState(pos, Blocks.AIR.getDefaultState(), 3);
+        }
+
+        return true; // DUMMY RETURN VALUE
     }
 
     private void registerEgg(Item egg) {

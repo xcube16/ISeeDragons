@@ -17,19 +17,36 @@ public class AsmTransformer implements IClassTransformer {
 
 	@Override
 	public byte[] transform(String name, String transformedName, byte[] bytes) {
-		if(transformedName.equals("com.github.alexthe666.iceandfire.item.ItemModAxe")) {
+		// TODO: ok we are messing with multiple classes now... clean this up a bit
+		if(transformedName.equals("com.github.alexthe666.iceandfire.item.ItemModAxe") ||
+				transformedName.equals("com.github.alexthe666.iceandfire.entity.EntityDragonBase")) {
+
 			ISeeDragons.logger.info("ATTEMPTING TO PATCH " + transformedName + "!");
-			ClassReader reader = new ClassReader(bytes);
-			ClassNode node = new ClassNode();
-			reader.accept(node, 0);
-			if(fixItemModAxe(node)) {
-				ClassWriter writer = new ClassWriter(ClassWriter.COMPUTE_MAXS | ClassWriter.COMPUTE_FRAMES);
-				node.accept(writer);
-				//node.accept(new CheckClassAdapter(writer));
-				bytes = writer.toByteArray();
-				ISeeDragons.logger.info("Patched " + transformedName + " to use ItemAxe as its superclass!");
-			} else {
-				ISeeDragons.logger.error("Failed to patch " + transformedName + "!");
+
+			try {
+				ClassReader reader = new ClassReader(bytes);
+				ClassNode node = new ClassNode();
+				reader.accept(node, 0);
+
+				boolean success;
+				if (transformedName.equals("com.github.alexthe666.iceandfire.item.ItemModAxe")) {
+					success = fixItemModAxe(node);
+				} else {
+					success = fixEntityDragonBase(node);
+				}
+
+				if(success) {
+					ClassWriter writer = new ClassWriter(ClassWriter.COMPUTE_MAXS);
+					//node.accept(writer);
+					node.accept(new CheckClassAdapter(writer));
+					bytes = writer.toByteArray();
+					ISeeDragons.logger.info("Patched " + transformedName);
+				} else {
+					ISeeDragons.logger.error("Failed to patch " + transformedName + "!");
+				}
+
+			} catch (Throwable t) {
+				ISeeDragons.logger.error("Aborting patch!", t);
 			}
 		}
 
@@ -102,6 +119,54 @@ public class AsmTransformer implements IClassTransformer {
 				"field_77862_b",
 				"Lnet/minecraft/item/Item$ToolMaterial;"));
 		initMethod.get().instructions.insert(invokespecialIns, setToolMaterial);
+
+		return true;
+	}
+
+	private boolean fixEntityDragonBase(ClassNode node) {
+		// find breakBlock() method
+		Optional<MethodNode> breakBlockMethod = node.methods.stream()
+				.filter(method -> method.name.equals("breakBlock"))
+				.findFirst();
+		if (!breakBlockMethod.isPresent()) {
+			ISeeDragons.logger.warn("Failed to find breakBlock() method");
+			return false;
+		}
+
+		// find World#destroyBlock() call
+		AbstractInsnNode breakBlockCall = breakBlockMethod.get().instructions.getFirst();
+		while (breakBlockCall != null &&
+				(breakBlockCall.getOpcode() != Opcodes.INVOKEVIRTUAL ||
+				!((MethodInsnNode) breakBlockCall).name.equals("func_175655_b"))) {
+			breakBlockCall = breakBlockCall.getNext();
+		}
+		if (breakBlockCall == null) {
+			ISeeDragons.logger.error("Failed to find func_175655_b (World#destroyBlock()) call");
+			return false;
+		}
+
+		breakBlockMethod.get().instructions.remove(breakBlockCall.getPrevious()); // delete ICONST_1 (true)
+
+		// call hook method in ISeeDragons to see if the block should drop
+		InsnList callHook = new InsnList();
+
+		// ...                                  this.world
+		//callHook.add(new VarInsnNode(Opcodes.ALOAD, 0));
+		//callHook.add(new FieldInsnNode(Opcodes.GETFIELD,
+		//		"com/github/alexthe666/iceandfire/entity/EntityDragonBase",
+		//		"field_70170_p", // world
+		//		"Lnet/minecraft/world/World;"));
+
+		// ...                                              state
+		callHook.add(new VarInsnNode(Opcodes.ALOAD, 5));
+		// ... ISeeDragons.dragonBreakBlockHook(   ...    , ...  )
+		callHook.add(new MethodInsnNode(Opcodes.INVOKESTATIC,
+				"io/github/xcube16/iseedragons/ISeeDragons",
+				"dragonBreakBlockHook",
+				"(Lnet/minecraft/world/World;Lnet/minecraft/util/math/BlockPos;Lnet/minecraft/block/state/IBlockState;)Z"));
+		breakBlockMethod.get().instructions.insertBefore(breakBlockCall, callHook);
+
+		breakBlockMethod.get().instructions.remove(breakBlockCall);
 
 		return true;
 	}
