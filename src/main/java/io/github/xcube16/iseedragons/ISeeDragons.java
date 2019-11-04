@@ -149,6 +149,8 @@ public class ISeeDragons {
     public static Block iceandfireAsh;
     @GameRegistry.ObjectHolder("iceandfire:chared_stone")
     public static Block iceandfireCharedStone;
+    @GameRegistry.ObjectHolder("iceandfire:chared_cobblestone")
+    public static Block iceandfireCharedCobblestone;
 
     /**
      * This method is called by EntityDragonBase from ASMed code! Don't change its signature!
@@ -159,23 +161,27 @@ public class ISeeDragons {
      * @return dummy value
      */
     public static boolean dragonBreakBlockHook(World world, BlockPos pos, IBlockState state) {
-        // hard coded stuff for now
+        // hard coded stuff for now TODO: clean up ugly if statements and maybe make it configurable
         boolean shouldDrop = true;
         Block block = state.getBlock();
         if (block == Blocks.STONE ||
-            block == iceandfireAsh ||
-            block == iceandfireCharedStone) {
+                block == iceandfireAsh ||
+                block == iceandfireCharedStone ||
+                block == iceandfireCharedCobblestone) {
             shouldDrop = world.rand.nextInt(100) < 2; // 2%
         } else if (block == Blocks.DIRT ||
                    block == Blocks.GRASS ||
                    block == Blocks.SAND ||
                    block == Blocks.COBBLESTONE) {
-            shouldDrop = world.rand.nextInt(100) < 3; // 4%
+            shouldDrop = world.rand.nextInt(100) < 3; // 3%
         }
 
         if (!block.isAir(state, world, pos)) {
 
-            if ((block != Blocks.STONE && block != Blocks.DIRT) || world.rand.nextInt(100) < 5) { // 5% chance for stone, 100% for else
+            if ((block != Blocks.STONE &&
+                    block != Blocks.DIRT &&
+                    block != iceandfireCharedStone &&
+                    block != iceandfireCharedCobblestone) || world.rand.nextInt(100) < 5) { // 5% chance for stone, 100% for else
                 world.playEvent(2001, pos, Block.getStateId(state));
             }
 
@@ -220,12 +226,12 @@ public class ISeeDragons {
     private Optional<Integer> getRenderBoost(@Nullable ResourceLocation id) {
         if (id == null) {
             return Optional.empty();
-        } else if (this.isDragon(id)) {
+        } else if (this.isDragon(id) ||
+                id.getResourcePath().equals("seaserpent") ||
+                id.getResourcePath().equals("golem") && id.getResourceDomain().equals("battletowers")) {
             return Optional.of(256);
-        } else if (id.getResourcePath().equals("seaserpent")) {
-            return Optional.of(256);
-        } else if (id.getResourcePath().equals("golem") && id.getResourceDomain().equals("battletowers")) {
-            return Optional.of(256);
+        } else if (id.getResourcePath().equals("cyclops")) {
+            return Optional.of(160);
         }
         return Optional.empty();
     }
