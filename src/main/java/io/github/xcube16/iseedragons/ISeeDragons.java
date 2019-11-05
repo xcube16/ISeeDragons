@@ -13,8 +13,11 @@ import net.minecraft.util.ResourceLocation;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
 import net.minecraftforge.common.MinecraftForge;
+import net.minecraftforge.common.config.Config;
+import net.minecraftforge.common.config.ConfigManager;
 import net.minecraftforge.event.RegistryEvent;
 import net.minecraftforge.event.entity.living.LivingAttackEvent;
+import net.minecraftforge.fml.client.event.ConfigChangedEvent;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.common.event.FMLInitializationEvent;
 import net.minecraftforge.fml.common.event.FMLPostInitializationEvent;
@@ -30,17 +33,23 @@ import org.apache.logging.log4j.Logger;
 import javax.annotation.Nullable;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Optional;
 
 @Mod(modid= ISeeDragons.MODID, version = ISeeDragons.VERSION, acceptableRemoteVersions = "*", name = ISeeDragons.NAME)
 public class ISeeDragons {
     public static final String MODID = "iseedragons";
     public static final String NAME = "ISeeDragons";
-    public static final String VERSION = "0.4-SNAPSHOT";
+    public static final String VERSION = "0.5-SNAPSHOT";
     public static final Logger logger = LogManager.getLogger(NAME);
 
     @Nullable // lazy init
     private Method dragonSetSleeping;
+
+    // static is kind of ugly, but so are ASM hooks and hacks :P
+    private static Map<Block, Integer> dropChances;
+    private static Map<Block, Integer> effectChances;
 
     @Mod.EventHandler
     public void preinit(FMLPreInitializationEvent event)
@@ -50,30 +59,8 @@ public class ISeeDragons {
 
     @Mod.EventHandler
     public void postInit(FMLPostInitializationEvent event) {
-        logger.info("Scanning for Ice and Fire dragons...");
-        boolean foundOne = false;
-        try {
-            Field regField = EntityRegistry.instance().getClass().getDeclaredField("entityClassRegistrations");
-            regField.setAccessible(true);
-            BiMap<Class<? extends Entity>, EntityRegistry.EntityRegistration> reg =
-                    (BiMap<Class<? extends Entity>, EntityRegistry.EntityRegistration>)regField.get(EntityRegistry.instance());
-            for (EntityRegistry.EntityRegistration entity : reg.values()) {
-                //logger.info(entity.getRegistryName().toString());
-                Optional boost = this.getRenderBoost(entity.getRegistryName());
-                if (boost.isPresent()) {
-                    foundOne = true;
-                    logger.info("Fixed " + entity.getRegistryName() + " tracking distance");
-                    Field rangeField = entity.getClass().getDeclaredField("trackingRange");
-                    rangeField.setAccessible(true);
-                    rangeField.set(entity, boost.get());
-                }
-            }
-        } catch (Exception e) {
-            logger.error("Failed to fix Ice and Fire entity tracking distance", e);
-        }
-        if (!foundOne) {
-            logger.warn("No Ice and Fire dragons found! Is it installed?");
-        }
+
+        this.loadConfig();
 
         logger.info("Fixing sea serpent armor repair...");
         try {
@@ -145,12 +132,59 @@ public class ISeeDragons {
         logger.info("Done fixing Ice and Fire ore dictionary");
     }
 
-    @GameRegistry.ObjectHolder("iceandfire:ash")
-    public static Block iceandfireAsh;
-    @GameRegistry.ObjectHolder("iceandfire:chared_stone")
-    public static Block iceandfireCharedStone;
-    @GameRegistry.ObjectHolder("iceandfire:chared_cobblestone")
-    public static Block iceandfireCharedCobblestone;
+    @SubscribeEvent
+    public void onConfigChange(ConfigChangedEvent.OnConfigChangedEvent e) {
+        if (e.getModID().equals(ISeeDragons.MODID)) {
+            ConfigManager.sync(ISeeDragons.MODID, Config.Type.INSTANCE);
+
+            loadConfig();
+        }
+    }
+
+    private void loadConfig() {
+        dropChances = loadBlockChanceMapping(StaticConfig.dropChances);
+        effectChances = loadBlockChanceMapping(StaticConfig.effectChances);
+
+        logger.info("Scanning for Ice and Fire dragons...");
+        boolean foundOne = false;
+        try {
+            Field regField = EntityRegistry.instance().getClass().getDeclaredField("entityClassRegistrations");
+            regField.setAccessible(true);
+            BiMap<Class<? extends Entity>, EntityRegistry.EntityRegistration> reg =
+                    (BiMap<Class<? extends Entity>, EntityRegistry.EntityRegistration>)regField.get(EntityRegistry.instance());
+            for (EntityRegistry.EntityRegistration entity : reg.values()) {
+                //logger.info(entity.getRegistryName().toString());
+                Optional boost = this.getRenderBoost(entity.getRegistryName());
+                if (boost.isPresent()) {
+                    foundOne = true;
+                    logger.info("Fixed " + entity.getRegistryName() + " tracking distance");
+                    Field rangeField = entity.getClass().getDeclaredField("trackingRange");
+                    rangeField.setAccessible(true);
+                    rangeField.set(entity, boost.get());
+                }
+            }
+        } catch (Exception e) {
+            logger.error("Failed to fix Ice and Fire entity tracking distance", e);
+        }
+        if (!foundOne) {
+            logger.warn("No Ice and Fire dragons found! Is it installed?");
+        }
+    }
+
+    private Map<Block, Integer> loadBlockChanceMapping(Map<String, Integer> input) {
+        Map<Block, Integer> map = new HashMap<>();
+        for (Map.Entry<String, Integer> entry : input.entrySet()) {
+            @Nullable
+            Block block = Block.REGISTRY.getObject(new ResourceLocation(entry.getKey()));
+            if (block == Blocks.AIR) { // FIXME: air is the default form Block.REGISTRY, but what if someone adds air to the list
+                logger.warn("Could not find block \"" + entry.getKey() + "\", ignoring!");
+            } else {
+                // clamp to range 0%-100%
+                map.put(block, Math.min(Math.max(entry.getValue(), 0), 100));
+            }
+        }
+        return map;
+    }
 
     /**
      * This method is called by EntityDragonBase from ASMed code! Don't change its signature!
@@ -161,10 +195,16 @@ public class ISeeDragons {
      * @return dummy value
      */
     public static boolean dragonBreakBlockHook(World world, BlockPos pos, IBlockState state) {
-        // hard coded stuff for now TODO: clean up ugly if statements and maybe make it configurable
-        boolean shouldDrop = true;
         Block block = state.getBlock();
-        if (block == Blocks.STONE ||
+        int chance = Optional.ofNullable(dropChances.get(block)).orElse(StaticConfig.defaultDropChance);
+
+        boolean shouldDrop = true;
+        if (chance == 0) {
+            shouldDrop = false;
+        } else if (chance != 100) {
+            shouldDrop = world.rand.nextInt(100) < chance;
+        }
+        /*if (block == Blocks.STONE ||
                 block == iceandfireAsh ||
                 block == iceandfireCharedStone ||
                 block == iceandfireCharedCobblestone) {
@@ -174,23 +214,27 @@ public class ISeeDragons {
                    block == Blocks.SAND ||
                    block == Blocks.COBBLESTONE) {
             shouldDrop = world.rand.nextInt(100) < 3; // 3%
-        }
+        }*/
 
         if (!block.isAir(state, world, pos)) {
 
-            if ((block != Blocks.STONE &&
+            chance = Optional.ofNullable(effectChances.get(block)).orElse(StaticConfig.defaultEffectChance);
+            if (chance == 100 || (chance != 0 && world.rand.nextInt(100) < chance)) {
+                world.playEvent(2001, pos, Block.getStateId(state));
+            }
+
+            /*if ((block != Blocks.STONE &&
                     block != Blocks.DIRT &&
                     block != iceandfireCharedStone &&
                     block != iceandfireCharedCobblestone) || world.rand.nextInt(100) < 5) { // 5% chance for stone, 100% for else
                 world.playEvent(2001, pos, Block.getStateId(state));
-            }
+            }*/
 
             if (shouldDrop)
             {
                 block.dropBlockAsItem(world, pos, state, 0);
             }
-
-            return world.setBlockState(pos, Blocks.AIR.getDefaultState(), 3);
+            world.setBlockState(pos, Blocks.AIR.getDefaultState(), 3);
         }
 
         return true; // DUMMY RETURN VALUE
@@ -226,6 +270,10 @@ public class ISeeDragons {
     private Optional<Integer> getRenderBoost(@Nullable ResourceLocation id) {
         if (id == null) {
             return Optional.empty();
+        }
+        return Optional.ofNullable(StaticConfig.distanceOverrides.get(id.toString()));
+        /*if (id == null) {
+            return Optional.empty();
         } else if (this.isDragon(id) ||
                 id.getResourcePath().equals("seaserpent") ||
                 id.getResourcePath().equals("golem") && id.getResourceDomain().equals("battletowers")) {
@@ -233,7 +281,7 @@ public class ISeeDragons {
         } else if (id.getResourcePath().equals("cyclops")) {
             return Optional.of(160);
         }
-        return Optional.empty();
+        return Optional.empty();*/
     }
 
     private boolean isDragon(@Nullable ResourceLocation id) {
