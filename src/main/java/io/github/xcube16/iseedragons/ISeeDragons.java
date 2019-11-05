@@ -41,7 +41,7 @@ import java.util.Optional;
 public class ISeeDragons {
     public static final String MODID = "iseedragons";
     public static final String NAME = "ISeeDragons";
-    public static final String VERSION = "0.5-SNAPSHOT";
+    public static final String VERSION = "0.5";
     public static final Logger logger = LogManager.getLogger(NAME);
 
     @Nullable // lazy init
@@ -204,17 +204,6 @@ public class ISeeDragons {
         } else if (chance != 100) {
             shouldDrop = world.rand.nextInt(100) < chance;
         }
-        /*if (block == Blocks.STONE ||
-                block == iceandfireAsh ||
-                block == iceandfireCharedStone ||
-                block == iceandfireCharedCobblestone) {
-            shouldDrop = world.rand.nextInt(100) < 2; // 2%
-        } else if (block == Blocks.DIRT ||
-                   block == Blocks.GRASS ||
-                   block == Blocks.SAND ||
-                   block == Blocks.COBBLESTONE) {
-            shouldDrop = world.rand.nextInt(100) < 3; // 3%
-        }*/
 
         if (!block.isAir(state, world, pos)) {
 
@@ -222,13 +211,6 @@ public class ISeeDragons {
             if (chance == 100 || (chance != 0 && world.rand.nextInt(100) < chance)) {
                 world.playEvent(2001, pos, Block.getStateId(state));
             }
-
-            /*if ((block != Blocks.STONE &&
-                    block != Blocks.DIRT &&
-                    block != iceandfireCharedStone &&
-                    block != iceandfireCharedCobblestone) || world.rand.nextInt(100) < 5) { // 5% chance for stone, 100% for else
-                world.playEvent(2001, pos, Block.getStateId(state));
-            }*/
 
             if (shouldDrop)
             {

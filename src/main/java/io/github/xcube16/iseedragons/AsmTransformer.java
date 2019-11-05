@@ -37,8 +37,8 @@ public class AsmTransformer implements IClassTransformer {
 
 				if(success) {
 					ClassWriter writer = new ClassWriter(ClassWriter.COMPUTE_MAXS);
-					//node.accept(writer);
-					node.accept(new CheckClassAdapter(writer));
+					node.accept(writer);
+					//node.accept(new CheckClassAdapter(writer));
 					bytes = writer.toByteArray();
 					ISeeDragons.logger.info("Patched " + transformedName);
 				} else {
@@ -151,12 +151,7 @@ public class AsmTransformer implements IClassTransformer {
 		InsnList callHook = new InsnList();
 
 		// ...                                  this.world
-		//callHook.add(new VarInsnNode(Opcodes.ALOAD, 0));
-		//callHook.add(new FieldInsnNode(Opcodes.GETFIELD,
-		//		"com/github/alexthe666/iceandfire/entity/EntityDragonBase",
-		//		"field_70170_p", // world
-		//		"Lnet/minecraft/world/World;"));
-
+		// *world already on stack*
 		// ...                                              state
 		callHook.add(new VarInsnNode(Opcodes.ALOAD, 5));
 		// ... ISeeDragons.dragonBreakBlockHook(   ...    , ...  )
