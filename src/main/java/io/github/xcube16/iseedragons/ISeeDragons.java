@@ -5,6 +5,7 @@ import net.minecraft.block.Block;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityList;
+import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.init.Blocks;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemArmor;
@@ -16,6 +17,7 @@ import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.common.config.Config;
 import net.minecraftforge.common.config.ConfigManager;
 import net.minecraftforge.event.RegistryEvent;
+import net.minecraftforge.event.entity.EntityMountEvent;
 import net.minecraftforge.event.entity.living.LivingAttackEvent;
 import net.minecraftforge.fml.client.event.ConfigChangedEvent;
 import net.minecraftforge.fml.common.Mod;
@@ -41,11 +43,17 @@ import java.util.Optional;
 public class ISeeDragons {
     public static final String MODID = "iseedragons";
     public static final String NAME = "ISeeDragons";
-    public static final String VERSION = "0.5";
+    public static final String VERSION = "0.6";
     public static final Logger logger = LogManager.getLogger(NAME);
 
     @Nullable // lazy init
     private Method dragonSetSleeping;
+    @Nullable // lazy init
+    private Field dragonCurrentAnimation;
+    @Nullable
+    private Field dragonAnimationTick;
+    @Nullable // lazy init
+    private Object dragon_ANIMATION_SHAKEPREY;
 
     // static is kind of ugly, but so are ASM hooks and hacks :P
     private static Map<Block, Integer> dropChances;
@@ -249,6 +257,38 @@ public class ISeeDragons {
         }
     }
 
+    @SubscribeEvent
+    public void onDismount(EntityMountEvent e) {
+        if (e.isDismounting() && e.getEntityMounting() instanceof EntityPlayer) {
+            if (this.isDragon(EntityList.getKey(e.getEntityBeingMounted().getClass()))) {
+                try {
+                    if (this.dragonCurrentAnimation == null) {
+                        this.dragonCurrentAnimation = this.getFieldInHierarchy(e.getEntityBeingMounted().getClass(), "currentAnimation");
+                        this.dragonCurrentAnimation.setAccessible(true);
+                    }
+                    if (this.dragonAnimationTick == null) {
+                        this.dragonAnimationTick = this.getFieldInHierarchy(e.getEntityBeingMounted().getClass(), "animationTick");
+                        this.dragonAnimationTick.setAccessible(true);
+                    }
+                    if (this.dragon_ANIMATION_SHAKEPREY == null) {
+                        Field f = this.getFieldInHierarchy(e.getEntityBeingMounted().getClass(), "ANIMATION_SHAKEPREY");
+                        this.dragon_ANIMATION_SHAKEPREY = f.get(null);
+                    }
+
+                    Object animation = this.dragonCurrentAnimation.get(e.getEntityBeingMounted());
+                    int aniTick = (Integer) this.dragonAnimationTick.get(e.getEntityBeingMounted());
+
+                    if (animation == this.dragon_ANIMATION_SHAKEPREY && aniTick <= 55) {
+                        e.setCanceled(true);
+                    }
+
+                } catch (Exception ex) {
+                    logger.error("Failed to check dragon state", ex);
+                }
+            }
+        }
+    }
+
     private Optional<Integer> getRenderBoost(@Nullable ResourceLocation id) {
         if (id == null) {
             return Optional.empty();
@@ -281,7 +321,18 @@ public class ISeeDragons {
             return clazz.getDeclaredMethod(name, parameterTypes);
         } catch (NoSuchMethodException e) {
             if (clazz.getSuperclass() != null) {
-                return getMethodInHierarchy(clazz.getSuperclass(), name, parameterTypes);
+                return this.getMethodInHierarchy(clazz.getSuperclass(), name, parameterTypes);
+            }
+            throw e;
+        }
+    }
+
+    private Field getFieldInHierarchy(Class<?> clazz, String name) throws NoSuchFieldException {
+        try {
+            return clazz.getDeclaredField(name);
+        } catch (NoSuchFieldException e) {
+            if (clazz.getSuperclass() != null) {
+                return this.getFieldInHierarchy(clazz.getSuperclass(), name);
             }
             throw e;
         }

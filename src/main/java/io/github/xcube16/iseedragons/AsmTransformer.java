@@ -33,6 +33,9 @@ public class AsmTransformer implements IClassTransformer {
 					success = fixItemModAxe(node);
 				} else {
 					success = fixEntityDragonBase(node);
+					/*if (success) {
+						success = fixJawsEscape(node);
+					}*/
 				}
 
 				if(success) {
@@ -165,5 +168,51 @@ public class AsmTransformer implements IClassTransformer {
 
 		return true;
 	}
+
+	/*
+	 * WOW... I am so dumb! ... I was fixing code that never worked!
+	 */
+	/*private boolean fixJawsEscape(ClassNode node) {
+		// find onUpdate() method
+		Optional<MethodNode> onUpdateMethod = node.methods.stream()
+				.filter(method -> method.name.equals("func_70071_h_"))
+				.findFirst();
+		if (!onUpdateMethod.isPresent()) {
+			ISeeDragons.logger.warn("Failed to find breakBlock() method");
+			return false;
+		}
+
+		// find Entity#isRiding() call
+		AbstractInsnNode isRidingCall = onUpdateMethod.get().instructions.getFirst();
+		while (isRidingCall != null &&
+				(isRidingCall.getOpcode() != Opcodes.INVOKEVIRTUAL ||
+						!((MethodInsnNode) isRidingCall).name.equals("func_70093_af"))) {
+			isRidingCall = isRidingCall.getNext();
+		}
+		if (isRidingCall == null) {
+			ISeeDragons.logger.error("Failed to find func_70093_af (Entity#isRiding() call)");
+			return false;
+		}
+
+		// call hook method in ISeeDragons to see if the block should drop
+		InsnList aniCheck = new InsnList();
+
+		// .. this............... .. ...................
+		aniCheck.add(new VarInsnNode(Opcodes.ALOAD, 0));
+		// .. .....getAnimation() .. ...................
+		aniCheck.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL,
+				"com/github/alexthe666/iceandfire/entity/EntityDragonBase",
+				"getAnimation",
+				"()Lnet/ilexiconn/llibrary/server/animation/Animation;"));
+		// .. ................... .. ANIMATION_SHAKEPREY
+		aniCheck.add(new FieldInsnNode(Opcodes.GETSTATIC,
+				"com/github/alexthe666/iceandfire/entity/EntityDragonBase",
+				"ANIMATION_SHAKEPREY",
+				"Lnet/ilexiconn/llibrary/server/animation/Animation;"));
+		// && ................... == ...................
+		aniCheck.add(new JumpInsnNode(Opcodes.IFNE, ((JumpInsnNode) isRidingCall.getNext()).label));
+
+		return true;
+	}*/
 }
 
