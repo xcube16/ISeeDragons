@@ -43,7 +43,7 @@ import java.util.Optional;
 public class ISeeDragons {
     public static final String MODID = "iseedragons";
     public static final String NAME = "ISeeDragons";
-    public static final String VERSION = "0.6.1";
+    public static final String VERSION = "0.6.2";
     public static final Logger logger = LogManager.getLogger(NAME);
 
     @Nullable // lazy init
@@ -54,6 +54,13 @@ public class ISeeDragons {
     private Field dragonAnimationTick;
     @Nullable // lazy init
     private Field dragon_ANIMATION_SHAKEPREY;
+
+    @Nullable // lazy init
+    private Field cyclopsCurrentAnimation;
+    @Nullable
+    private Field cyclopsAnimationTick;
+    @Nullable // lazy init
+    private Field cyclops_ANIMATION_EATPLAYER;
 
     // static is kind of ugly, but so are ASM hooks and hacks :P
     private static Map<Block, Integer> dropChances;
@@ -275,7 +282,11 @@ public class ISeeDragons {
     }
 
     private boolean canDismount(Entity entity) {
-        if (!entity.isDead && this.isDragon(EntityList.getKey(entity.getClass()))) {
+        if (entity.isDead) { // sanity check. Yes, players get stuck without this :P
+            return true;
+        }
+        ResourceLocation id = EntityList.getKey(entity.getClass());
+        if (!entity.isDead && this.isDragon(id)) {
             try {
                 if (this.dragonCurrentAnimation == null) {
                     this.dragonCurrentAnimation = this.getFieldInHierarchy(entity.getClass(), "currentAnimation");
@@ -299,6 +310,31 @@ public class ISeeDragons {
 
             } catch (Exception ex) {
                 logger.error("Failed to check dragon state", ex);
+            }
+        } else if (isCyclops(id)) {
+            try {
+                if (this.cyclopsCurrentAnimation == null) {
+                    this.cyclopsCurrentAnimation = this.getFieldInHierarchy(entity.getClass(), "currentAnimation");
+                    this.cyclopsCurrentAnimation.setAccessible(true);
+                }
+                if (this.cyclopsAnimationTick == null) {
+                    this.cyclopsAnimationTick = this.getFieldInHierarchy(entity.getClass(), "animationTick");
+                    this.cyclopsAnimationTick.setAccessible(true);
+                }
+                if (this.cyclops_ANIMATION_EATPLAYER == null) {
+                    this.cyclops_ANIMATION_EATPLAYER = this.getFieldInHierarchy(entity.getClass(), "ANIMATION_EATPLAYER");
+                }
+
+                Object animation = this.cyclopsCurrentAnimation.get(entity);
+                Object aniShakePray = this.cyclops_ANIMATION_EATPLAYER.get(entity);
+                int aniTick = (Integer) this.cyclopsAnimationTick.get(entity);
+
+                if (animation == aniShakePray && aniTick < 32) {
+                    return false;
+                }
+
+            } catch (Exception ex) {
+                logger.error("Failed to check cyclops state", ex);
             }
         }
         return true;
@@ -329,6 +365,15 @@ public class ISeeDragons {
         return id.getResourceDomain().equals("iceandfire") && (
                 id.getResourcePath().equals("icedragon") ||
                 id.getResourcePath().equals("firedragon"));
+    }
+
+    private boolean isCyclops(@Nullable ResourceLocation id) {
+        if (id == null) {
+            return false;
+        }
+
+        return id.getResourceDomain().equals("iceandfire") && (
+                id.getResourcePath().equals("cyclops"));
     }
 
     private Method getMethodInHierarchy(Class<?> clazz, String name, Class<?>... parameterTypes) throws NoSuchMethodException {
