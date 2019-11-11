@@ -43,7 +43,7 @@ import java.util.Optional;
 public class ISeeDragons {
     public static final String MODID = "iseedragons";
     public static final String NAME = "ISeeDragons";
-    public static final String VERSION = "0.6";
+    public static final String VERSION = "0.6.1";
     public static final Logger logger = LogManager.getLogger(NAME);
 
     @Nullable // lazy init
@@ -53,7 +53,7 @@ public class ISeeDragons {
     @Nullable
     private Field dragonAnimationTick;
     @Nullable // lazy init
-    private Object dragon_ANIMATION_SHAKEPREY;
+    private Field dragon_ANIMATION_SHAKEPREY;
 
     // static is kind of ugly, but so are ASM hooks and hacks :P
     private static Map<Block, Integer> dropChances;
@@ -257,36 +257,51 @@ public class ISeeDragons {
         }
     }
 
-    @SubscribeEvent
+    @SubscribeEvent()
     public void onDismount(EntityMountEvent e) {
-        if (e.isDismounting() && e.getEntityMounting() instanceof EntityPlayer) {
-            if (this.isDragon(EntityList.getKey(e.getEntityBeingMounted().getClass()))) {
-                try {
-                    if (this.dragonCurrentAnimation == null) {
-                        this.dragonCurrentAnimation = this.getFieldInHierarchy(e.getEntityBeingMounted().getClass(), "currentAnimation");
-                        this.dragonCurrentAnimation.setAccessible(true);
-                    }
-                    if (this.dragonAnimationTick == null) {
-                        this.dragonAnimationTick = this.getFieldInHierarchy(e.getEntityBeingMounted().getClass(), "animationTick");
-                        this.dragonAnimationTick.setAccessible(true);
-                    }
-                    if (this.dragon_ANIMATION_SHAKEPREY == null) {
-                        Field f = this.getFieldInHierarchy(e.getEntityBeingMounted().getClass(), "ANIMATION_SHAKEPREY");
-                        this.dragon_ANIMATION_SHAKEPREY = f.get(null);
-                    }
-
-                    Object animation = this.dragonCurrentAnimation.get(e.getEntityBeingMounted());
-                    int aniTick = (Integer) this.dragonAnimationTick.get(e.getEntityBeingMounted());
-
-                    if (animation == this.dragon_ANIMATION_SHAKEPREY && aniTick <= 55) {
-                        e.setCanceled(true);
-                    }
-
-                } catch (Exception ex) {
-                    logger.error("Failed to check dragon state", ex);
+        if (e.getEntityMounting() instanceof EntityPlayer) {
+            if (e.isDismounting()) {
+                if (!this.canDismount(e.getEntityBeingMounted())) {
+                    e.setCanceled(true);
+                }
+            } else {
+                @Nullable
+                Entity previousMount = e.getEntityMounting().getRidingEntity();
+                if (previousMount != null && !this.canDismount(previousMount)) {
+                    e.setCanceled(true);
                 }
             }
         }
+    }
+
+    private boolean canDismount(Entity entity) {
+        if (!entity.isDead && this.isDragon(EntityList.getKey(entity.getClass()))) {
+            try {
+                if (this.dragonCurrentAnimation == null) {
+                    this.dragonCurrentAnimation = this.getFieldInHierarchy(entity.getClass(), "currentAnimation");
+                    this.dragonCurrentAnimation.setAccessible(true);
+                }
+                if (this.dragonAnimationTick == null) {
+                    this.dragonAnimationTick = this.getFieldInHierarchy(entity.getClass(), "animationTick");
+                    this.dragonAnimationTick.setAccessible(true);
+                }
+                if (this.dragon_ANIMATION_SHAKEPREY == null) {
+                    this.dragon_ANIMATION_SHAKEPREY = this.getFieldInHierarchy(entity.getClass(), "ANIMATION_SHAKEPREY");
+                }
+
+                Object animation = this.dragonCurrentAnimation.get(entity);
+                Object aniShakePray = this.dragon_ANIMATION_SHAKEPREY.get(entity);
+                int aniTick = (Integer) this.dragonAnimationTick.get(entity);
+
+                if (animation == aniShakePray && aniTick <= 55) {
+                    return false;
+                }
+
+            } catch (Exception ex) {
+                logger.error("Failed to check dragon state", ex);
+            }
+        }
+        return true;
     }
 
     private Optional<Integer> getRenderBoost(@Nullable ResourceLocation id) {
