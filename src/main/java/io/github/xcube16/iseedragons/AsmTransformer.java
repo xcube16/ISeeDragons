@@ -19,7 +19,8 @@ public class AsmTransformer implements IClassTransformer {
 	public byte[] transform(String name, String transformedName, byte[] bytes) {
 		// TODO: ok we are messing with multiple classes now... clean this up a bit
 		if(transformedName.equals("com.github.alexthe666.iceandfire.item.ItemModAxe") ||
-				transformedName.equals("com.github.alexthe666.iceandfire.entity.EntityDragonBase")) {
+				transformedName.equals("com.github.alexthe666.iceandfire.entity.EntityDragonBase") ||
+				transformedName.equals("net.minecraft.advancements.AdvancementManager")) {
 
 			ISeeDragons.logger.info("ATTEMPTING TO PATCH " + transformedName + "!");
 
@@ -31,17 +32,21 @@ public class AsmTransformer implements IClassTransformer {
 				boolean success;
 				if (transformedName.equals("com.github.alexthe666.iceandfire.item.ItemModAxe")) {
 					success = fixItemModAxe(node);
-				} else {
+				} else if (transformedName.equals("com.github.alexthe666.iceandfire.entity.EntityDragonBase")) {
 					success = fixEntityDragonBase(node);
 					/*if (success) {
 						success = fixJawsEscape(node);
 					}*/
+				} else if (transformedName.equals("net.minecraft.advancements.AdvancementManager")) {
+					success = nukeAdvancementManager(node);
+				} else {
+					success = false; // should not happen
 				}
 
 				if(success) {
 					ClassWriter writer = new ClassWriter(ClassWriter.COMPUTE_MAXS);
-					node.accept(writer);
-					//node.accept(new CheckClassAdapter(writer));
+					//node.accept(writer);
+					node.accept(new CheckClassAdapter(writer));
 					bytes = writer.toByteArray();
 					ISeeDragons.logger.info("Patched " + transformedName);
 				} else {
@@ -165,6 +170,27 @@ public class AsmTransformer implements IClassTransformer {
 		breakBlockMethod.get().instructions.insertBefore(breakBlockCall, callHook);
 
 		breakBlockMethod.get().instructions.remove(breakBlockCall);
+
+		return true;
+	}
+
+	private boolean nukeAdvancementManager(ClassNode node) {
+		// find breakBlock() method
+		Optional<MethodNode> breakBlockMethod = node.methods.stream()
+				.filter(method -> method.name.equals("func_192779_a")) // reload()
+				.findFirst();
+		if (!breakBlockMethod.isPresent()) {
+			// scrap: ISeeDragons.logger.warn("Failed to find func_192777_a() (loadBuiltInAdvancements) method");
+			ISeeDragons.logger.warn("Failed to find func_192779_a() (reload) method");
+			return false;
+		}
+
+		// nuke everything for the lulz
+		breakBlockMethod.get().instructions.clear();
+		breakBlockMethod.get().localVariables.clear();
+		breakBlockMethod.get().tryCatchBlocks.clear();
+		// return;
+		breakBlockMethod.get().instructions.add(new InsnNode(Opcodes.RETURN));
 
 		return true;
 	}

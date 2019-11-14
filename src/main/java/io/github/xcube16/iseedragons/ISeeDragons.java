@@ -44,7 +44,7 @@ import java.util.*;
 public class ISeeDragons {
     public static final String MODID = "iseedragons";
     public static final String NAME = "ISeeDragons";
-    public static final String VERSION = "0.8";
+    public static final String VERSION = "0.9";
     public static final Logger logger = LogManager.getLogger(NAME);
 
     @Nullable // lazy init
@@ -381,10 +381,13 @@ public class ISeeDragons {
 
     @SubscribeEvent()
     public void onDismount(EntityMountEvent e) {
-        if (e.getEntityMounting() instanceof EntityPlayer) {
+        if (!e.isCanceled() && e.getEntityMounting() instanceof EntityPlayer) {
             if (e.isDismounting()) {
                 if (!this.canDismount(e.getEntityBeingMounted())) {
                     e.setCanceled(true);
+                } else {
+                    // Fixes TAN picking up on infinite micro-jump thingy when a player dismounts anything while holding space
+                    ((EntityPlayer) e.getEntityMounting()).setJumping(false);
                 }
             } else {
                 @Nullable
