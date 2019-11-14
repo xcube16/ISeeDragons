@@ -34,6 +34,10 @@ public class StaticConfig {
     @Config.Name("RepairFixes")
     public static Map<String, String> repairFixes;
 
+    @Config.Comment("A list of items that need to do extra damage to undead enemies")
+    @Config.Name("ExtraUndeadDamage")
+    public static Map<String, Float> extraUndeadDamage;
+
     static {
         distanceOverrides = new LinkedHashMap<>();
         distanceOverrides.put("iceandfire:firedragon", 256);
@@ -80,5 +84,8 @@ public class StaticConfig {
         repairFixes = new LinkedHashMap<>();
         repairFixes.put("aquaculture:neptunium_pickaxe", "aquaculture:loot,1");
         repairFixes.put("aquaculture:neptunium_chestplate", "aquaculture:loot,1");
+
+        extraUndeadDamage = new LinkedHashMap<>();
+        extraUndeadDamage.put("minecraft:bedrock", 100.0f);
     }
 }

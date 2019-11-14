@@ -6,12 +6,11 @@ import net.minecraft.block.state.IBlockState;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityList;
 import net.minecraft.entity.EntityLivingBase;
+import net.minecraft.entity.EnumCreatureAttribute;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.init.Blocks;
-import net.minecraft.item.Item;
-import net.minecraft.item.ItemArmor;
-import net.minecraft.item.ItemStack;
-import net.minecraft.item.ItemTool;
+import net.minecraft.init.Items;
+import net.minecraft.item.*;
 import net.minecraft.util.DamageSource;
 import net.minecraft.util.ResourceLocation;
 import net.minecraft.util.math.BlockPos;
@@ -45,7 +44,7 @@ import java.util.*;
 public class ISeeDragons {
     public static final String MODID = "iseedragons";
     public static final String NAME = "ISeeDragons";
-    public static final String VERSION = "0.7";
+    public static final String VERSION = "0.8";
     public static final Logger logger = LogManager.getLogger(NAME);
 
     @Nullable // lazy init
@@ -67,6 +66,8 @@ public class ISeeDragons {
     // static is kind of ugly, but so are ASM hooks and hacks :P
     private static Map<Block, Integer> dropChances;
     private static Map<Block, Integer> effectChances;
+
+    private Map<Item, Float> extraUndeadDamage;
 
     @Mod.EventHandler
     public void preinit(FMLPreInitializationEvent event)
@@ -136,7 +137,7 @@ public class ISeeDragons {
                     logger.error(toolId + " has a bad tool material of " + toolMaterial);
                 }
             } else if (tool instanceof ItemArmor) {
-                Field materialField = ItemArmor.class.getDeclaredField("field_77878_bZ"); // toolMaterial
+                Field materialField = ItemArmor.class.getDeclaredField("field_77878_bZ"); // material
                 materialField.setAccessible(true);
                 Object toolMaterial = materialField.get(tool);
 
@@ -152,8 +153,25 @@ public class ISeeDragons {
                 } else {
                     logger.error(toolId + " has a bad armor material of " + toolMaterial);
                 }
+            } else if (tool instanceof ItemSword) {
+                Field materialField = ItemSword.class.getDeclaredField("field_150933_b"); // material
+                materialField.setAccessible(true);
+                Object toolMaterial = materialField.get(tool);
+
+                if (toolMaterial instanceof Item.ToolMaterial) {
+                    @Nullable
+                    Item repairItem = Item.getByNameOrId(repairItemId);
+                    if (repairItem != null) {
+                        ((ItemArmor.ToolMaterial) toolMaterial).setRepairItem(new ItemStack(repairItem, 1, meta));
+                        logger.info(toolId + " can now be repaired with " + repairItemId);
+                    } else {
+                        logger.error(repairItemId + " does not exist! Failed to fix " + toolId + " repair!");
+                    }
+                } else {
+                    logger.error(toolId + " has a bad sword material of " + toolMaterial);
+                }
             } else {
-                logger.info(toolId + " is not a tool or armor");
+                logger.info(toolId + " is not a tool, armor, or sword");
             }
         } catch (Exception e) {
             logger.error("Critical error while fixing tool/armor repair for " + toolId, e);
@@ -212,83 +230,26 @@ public class ISeeDragons {
         logger.info("Done fixing Ice and Fire ore dictionary");
     }
 
-    /*
     @SubscribeEvent
-    public static void onLivingHurt(LivingHurtEvent ev) {
-        DamageSource source = ev.getSource();
-        float dmgDealt = ev.getAmount();
-        EntityLivingBase victim = ev.getEntityLiving();
-        if (dmgDealt != 0.0F && !source.isProjectile() && !source.isFireDamage() && !source.isExplosion() && !source.func_82725_o() && (source.func_76355_l().equals("player") || source.func_76355_l().equals("mob"))) {
-            if (source.func_76346_g() instanceof EntityLivingBase && victim != null) {
-                EntityLivingBase attacker = (EntityLivingBase)source.func_76346_g();
-                ItemStack stack = attacker.func_184614_ca();
-                ItemStack victimStack = victim.func_184614_ca();
-                IWeaponPropertyContainer container;
-                if (!stack.func_190926_b() && stack.func_77973_b() instanceof IWeaponPropertyContainer) {
-                    container = (IWeaponPropertyContainer)stack.func_77973_b();
-                    WeaponProperty property = null;
-                    List<WeaponProperty> props = container.getAllWeaponProperties();
-                    Iterator var10 = props.iterator();
+    public void onLivingHurt(LivingHurtEvent e) {
+        DamageSource source = e.getSource();
+        if (e.getEntityLiving().getCreatureAttribute() != EnumCreatureAttribute.UNDEAD ||
+                source.isExplosion() || source.isFireDamage() || source.isMagicDamage() || source.isProjectile() ||
+                !(source.getDamageType().equals("player") || source.getDamageType().equals("mob"))) {
+            return;
+        }
 
-                    WeaponProperty prop;
-                    IPropertyCallback callback;
-                    while(var10.hasNext()) {
-                        prop = (WeaponProperty)var10.next();
-                        callback = prop.getCallback();
-                        if (callback != null) {
-                            dmgDealt = callback.modifyDamageDealt(container.getMaterialEx(), dmgDealt, container.getDirectAttackDamage() + 1.0F, source, attacker, victim);
-                        }
-                    }
-
-                    var10 = container.getMaterialEx().getAllWeaponProperties().iterator();
-
-                    while(var10.hasNext()) {
-                        prop = (WeaponProperty)var10.next();
-                        callback = prop.getCallback();
-                        if (callback != null) {
-                            dmgDealt = callback.modifyDamageDealt(container.getMaterialEx(), dmgDealt, container.getDirectAttackDamage() + 1.0F, source, attacker, victim);
-                        }
-                    }
-
-                    property = container.getFirstWeaponPropertyWithType("armour_piercing");
-                    if (property != null) {
-                        dmgDealt = WeaponHelper.dealArmourPiercingDamage(attacker, property.getMagnitude() / 100.0F, victim, ev.getAmount());
-                    }
-                }
-
-                if (!victimStack.func_190926_b() && victimStack.func_77973_b() instanceof IWeaponPropertyContainer) {
-                    container = (IWeaponPropertyContainer)victimStack.func_77973_b();
-                    List<WeaponProperty> props = container.getAllWeaponProperties();
-                    Iterator var14 = props.iterator();
-
-                    WeaponProperty prop;
-                    IPropertyCallback callback;
-                    while(var14.hasNext()) {
-                        prop = (WeaponProperty)var14.next();
-                        callback = prop.getCallback();
-                        if (callback != null) {
-                            dmgDealt = callback.modifyDamageTaken(container.getMaterialEx(), dmgDealt, source, attacker, victim);
-                        }
-                    }
-
-                    var14 = container.getMaterialEx().getAllWeaponProperties().iterator();
-
-                    while(var14.hasNext()) {
-                        prop = (WeaponProperty)var14.next();
-                        callback = prop.getCallback();
-                        if (callback != null) {
-                            dmgDealt = callback.modifyDamageTaken(container.getMaterialEx(), dmgDealt, source, attacker, victim);
-                        }
-                    }
-                }
-
-                if (dmgDealt != ev.getAmount()) {
-                    ev.setAmount(dmgDealt);
+        if (source.getTrueSource() != null && source.getTrueSource() instanceof EntityLivingBase) {
+            ItemStack weapon = ((EntityLivingBase) source.getTrueSource()).getHeldItemMainhand();
+            if (!weapon.isEmpty()) {
+                @Nullable
+                Float extra = this.extraUndeadDamage.get(weapon.getItem());
+                if (extra != null) {
+                    e.setAmount(e.getAmount() + extra);
                 }
             }
-
         }
-    }*/
+    }
 
     @SubscribeEvent
     public void onConfigChange(ConfigChangedEvent.OnConfigChangedEvent e) {
@@ -302,6 +263,17 @@ public class ISeeDragons {
     private void loadConfig() {
         dropChances = loadBlockChanceMapping(StaticConfig.dropChances);
         effectChances = loadBlockChanceMapping(StaticConfig.effectChances);
+
+        Map<Item, Float> extraUndeadDamage = new HashMap<>();
+        for (Map.Entry<String, Float> entry : StaticConfig.extraUndeadDamage.entrySet()) {
+            Item weapon = Item.getByNameOrId(entry.getKey());
+            if (weapon != Items.AIR) {
+                extraUndeadDamage.put(weapon, entry.getValue());
+            } else {
+                logger.warn(entry.getKey() + " was not found!");
+            }
+        }
+        this.extraUndeadDamage = extraUndeadDamage;
 
         logger.info("Scanning for Ice and Fire dragons...");
         boolean foundOne = false;
