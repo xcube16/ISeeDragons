@@ -1,9 +1,6 @@
 package io.github.xcube16.iseedragons;
 
-import com.sun.org.apache.bcel.internal.generic.GETSTATIC;
 import net.minecraft.launchwrapper.IClassTransformer;
-import net.minecraftforge.fml.common.FMLLog;
-import org.apache.logging.log4j.Logger;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.Opcodes;

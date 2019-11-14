@@ -1,10 +1,7 @@
 package io.github.xcube16.iseedragons;
 
-import com.google.common.collect.Maps;
-import net.minecraft.util.ResourceLocation;
 import net.minecraftforge.common.config.Config;
 
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
