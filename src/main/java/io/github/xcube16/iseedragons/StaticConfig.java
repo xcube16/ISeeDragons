@@ -28,7 +28,11 @@ public class StaticConfig {
 
     @Config.Comment("A list of block effect % chances")
     @Config.Name("EffectChances")
-    public static Map<String, Integer> effectChances = new LinkedHashMap<>();
+    public static Map<String, Integer> effectChances;
+
+    @Config.Comment("A list of tools/armor and there new repair item (note: only list one tool of a given 'ToolMaterial')")
+    @Config.Name("RepairFixes")
+    public static Map<String, String> repairFixes;
 
     static {
         distanceOverrides = new LinkedHashMap<>();
@@ -72,5 +76,9 @@ public class StaticConfig {
         effectChances.put("iceandfire:frozen_dirt", 5);
         effectChances.put("iceandfire:frozen_gravel", 5);
         effectChances.put("iceandfire:frozen_splinters", 5);
+
+        repairFixes = new LinkedHashMap<>();
+        repairFixes.put("aquaculture:neptunium_pickaxe", "aquaculture:loot,1");
+        repairFixes.put("aquaculture:neptunium_chestplate", "aquaculture:loot,1");
     }
 }

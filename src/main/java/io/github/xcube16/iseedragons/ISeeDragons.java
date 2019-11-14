@@ -5,11 +5,14 @@ import net.minecraft.block.Block;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityList;
+import net.minecraft.entity.EntityLivingBase;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.init.Blocks;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemArmor;
 import net.minecraft.item.ItemStack;
+import net.minecraft.item.ItemTool;
+import net.minecraft.util.DamageSource;
 import net.minecraft.util.ResourceLocation;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
@@ -19,6 +22,7 @@ import net.minecraftforge.common.config.ConfigManager;
 import net.minecraftforge.event.RegistryEvent;
 import net.minecraftforge.event.entity.EntityMountEvent;
 import net.minecraftforge.event.entity.living.LivingAttackEvent;
+import net.minecraftforge.event.entity.living.LivingHurtEvent;
 import net.minecraftforge.fml.client.event.ConfigChangedEvent;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.common.event.FMLInitializationEvent;
@@ -35,15 +39,13 @@ import org.apache.logging.log4j.Logger;
 import javax.annotation.Nullable;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 
 @Mod(modid= ISeeDragons.MODID, version = ISeeDragons.VERSION, acceptableRemoteVersions = "*", name = ISeeDragons.NAME)
 public class ISeeDragons {
     public static final String MODID = "iseedragons";
     public static final String NAME = "ISeeDragons";
-    public static final String VERSION = "0.6.2";
+    public static final String VERSION = "0.7";
     public static final Logger logger = LogManager.getLogger(NAME);
 
     @Nullable // lazy init
@@ -92,6 +94,69 @@ public class ISeeDragons {
             logger.warn("Could not find " + e.getMessage() + " while trying to fix sea serpent armor");
         } catch (Exception e) {
             logger.error("Failed to fix sea serpent armor", e);
+        }
+
+        logger.info("Fixing tools/armor repair listed in config...");
+        StaticConfig.repairFixes.forEach((toolId, repairItem) -> {
+            String[] split = repairItem.split(",");
+            int meta = 0;
+            if (split.length == 1) {
+                this.fixToolRepair(toolId, split[0], 0);
+            } else if (split.length == 2) {
+                this.fixToolRepair(toolId, split[0], Integer.parseInt(split[1]));
+            } else {
+                logger.error("Bad item string " + repairItem);
+            }
+        });
+
+    }
+
+    private void fixToolRepair(String toolId, String repairItemId, int meta) {
+        try {
+            Item tool = Item.getByNameOrId(toolId);
+            if (tool == null) {
+                logger.info("Could not find " + toolId + ", ignoring");
+                return;
+            }
+            if (tool instanceof ItemTool) {
+                Field toolMaterialField = ItemTool.class.getDeclaredField("field_77862_b"); // toolMaterial
+                toolMaterialField.setAccessible(true);
+                Object toolMaterial = toolMaterialField.get(tool);
+
+                if (toolMaterial instanceof Item.ToolMaterial) {
+                    @Nullable
+                    Item repairItem = Item.getByNameOrId(repairItemId);
+                    if (repairItem != null) {
+                        ((Item.ToolMaterial) toolMaterial).setRepairItem(new ItemStack(repairItem, 1, meta));
+                        logger.info(toolId + " can now be repaired with " + repairItemId);
+                    } else {
+                        logger.error(repairItemId + " does not exist! Failed to fix " + toolId + " repair!");
+                    }
+                } else {
+                    logger.error(toolId + " has a bad tool material of " + toolMaterial);
+                }
+            } else if (tool instanceof ItemArmor) {
+                Field materialField = ItemArmor.class.getDeclaredField("field_77878_bZ"); // toolMaterial
+                materialField.setAccessible(true);
+                Object toolMaterial = materialField.get(tool);
+
+                if (toolMaterial instanceof ItemArmor.ArmorMaterial) {
+                    @Nullable
+                    Item repairItem = Item.getByNameOrId(repairItemId);
+                    if (repairItem != null) {
+                        ((ItemArmor.ArmorMaterial) toolMaterial).setRepairItem(new ItemStack(repairItem, 1, meta));
+                        logger.info(toolId + " can now be repaired with " + repairItemId);
+                    } else {
+                        logger.error(repairItemId + " does not exist! Failed to fix " + toolId + " repair!");
+                    }
+                } else {
+                    logger.error(toolId + " has a bad armor material of " + toolMaterial);
+                }
+            } else {
+                logger.info(toolId + " is not a tool or armor");
+            }
+        } catch (Exception e) {
+            logger.error("Critical error while fixing tool/armor repair for " + toolId, e);
         }
     }
 
@@ -146,6 +211,84 @@ public class ISeeDragons {
         this.registerEgg(Item.getByNameOrId("iceandfire:myrmex_desert_egg"));
         logger.info("Done fixing Ice and Fire ore dictionary");
     }
+
+    /*
+    @SubscribeEvent
+    public static void onLivingHurt(LivingHurtEvent ev) {
+        DamageSource source = ev.getSource();
+        float dmgDealt = ev.getAmount();
+        EntityLivingBase victim = ev.getEntityLiving();
+        if (dmgDealt != 0.0F && !source.isProjectile() && !source.isFireDamage() && !source.isExplosion() && !source.func_82725_o() && (source.func_76355_l().equals("player") || source.func_76355_l().equals("mob"))) {
+            if (source.func_76346_g() instanceof EntityLivingBase && victim != null) {
+                EntityLivingBase attacker = (EntityLivingBase)source.func_76346_g();
+                ItemStack stack = attacker.func_184614_ca();
+                ItemStack victimStack = victim.func_184614_ca();
+                IWeaponPropertyContainer container;
+                if (!stack.func_190926_b() && stack.func_77973_b() instanceof IWeaponPropertyContainer) {
+                    container = (IWeaponPropertyContainer)stack.func_77973_b();
+                    WeaponProperty property = null;
+                    List<WeaponProperty> props = container.getAllWeaponProperties();
+                    Iterator var10 = props.iterator();
+
+                    WeaponProperty prop;
+                    IPropertyCallback callback;
+                    while(var10.hasNext()) {
+                        prop = (WeaponProperty)var10.next();
+                        callback = prop.getCallback();
+                        if (callback != null) {
+                            dmgDealt = callback.modifyDamageDealt(container.getMaterialEx(), dmgDealt, container.getDirectAttackDamage() + 1.0F, source, attacker, victim);
+                        }
+                    }
+
+                    var10 = container.getMaterialEx().getAllWeaponProperties().iterator();
+
+                    while(var10.hasNext()) {
+                        prop = (WeaponProperty)var10.next();
+                        callback = prop.getCallback();
+                        if (callback != null) {
+                            dmgDealt = callback.modifyDamageDealt(container.getMaterialEx(), dmgDealt, container.getDirectAttackDamage() + 1.0F, source, attacker, victim);
+                        }
+                    }
+
+                    property = container.getFirstWeaponPropertyWithType("armour_piercing");
+                    if (property != null) {
+                        dmgDealt = WeaponHelper.dealArmourPiercingDamage(attacker, property.getMagnitude() / 100.0F, victim, ev.getAmount());
+                    }
+                }
+
+                if (!victimStack.func_190926_b() && victimStack.func_77973_b() instanceof IWeaponPropertyContainer) {
+                    container = (IWeaponPropertyContainer)victimStack.func_77973_b();
+                    List<WeaponProperty> props = container.getAllWeaponProperties();
+                    Iterator var14 = props.iterator();
+
+                    WeaponProperty prop;
+                    IPropertyCallback callback;
+                    while(var14.hasNext()) {
+                        prop = (WeaponProperty)var14.next();
+                        callback = prop.getCallback();
+                        if (callback != null) {
+                            dmgDealt = callback.modifyDamageTaken(container.getMaterialEx(), dmgDealt, source, attacker, victim);
+                        }
+                    }
+
+                    var14 = container.getMaterialEx().getAllWeaponProperties().iterator();
+
+                    while(var14.hasNext()) {
+                        prop = (WeaponProperty)var14.next();
+                        callback = prop.getCallback();
+                        if (callback != null) {
+                            dmgDealt = callback.modifyDamageTaken(container.getMaterialEx(), dmgDealt, source, attacker, victim);
+                        }
+                    }
+                }
+
+                if (dmgDealt != ev.getAmount()) {
+                    ev.setAmount(dmgDealt);
+                }
+            }
+
+        }
+    }*/
 
     @SubscribeEvent
     public void onConfigChange(ConfigChangedEvent.OnConfigChangedEvent e) {
