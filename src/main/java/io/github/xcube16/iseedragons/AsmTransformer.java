@@ -1,12 +1,15 @@
 package io.github.xcube16.iseedragons;
 
 import net.minecraft.launchwrapper.IClassTransformer;
+import net.minecraftforge.common.config.Configuration;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.tree.*;
 import org.objectweb.asm.util.CheckClassAdapter;
 
+import javax.annotation.Nullable;
+import java.nio.file.Paths;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
@@ -14,11 +17,13 @@ public class AsmTransformer implements IClassTransformer {
 
 	@Override
 	public byte[] transform(String name, String transformedName, byte[] bytes) {
+
 		// TODO: ok we are messing with multiple classes now... clean this up a bit
 		if(transformedName.equals("com.github.alexthe666.iceandfire.item.ItemModAxe") ||
 				transformedName.equals("com.github.alexthe666.iceandfire.entity.EntityDragonBase") ||
 				transformedName.equals("net.minecraft.advancements.AdvancementManager") ||
-				transformedName.equals("net.minecraft.advancements.AdvancementRewards$Deserializer")) {
+				/*transformedName.equals("net.minecraft.advancements.AdvancementRewards$Deserializer")*/
+				transformedName.equals("net.minecraftforge.common.ForgeHooks")) {
 
 			ISeeDragons.logger.info("ATTEMPTING TO PATCH " + transformedName + "!");
 
@@ -27,7 +32,7 @@ public class AsmTransformer implements IClassTransformer {
 				ClassNode node = new ClassNode();
 				reader.accept(node, 0);
 
-				boolean success;
+				boolean success = true;
 				if (transformedName.equals("com.github.alexthe666.iceandfire.item.ItemModAxe")) {
 					success = fixItemModAxe(node);
 				} else if (transformedName.equals("com.github.alexthe666.iceandfire.entity.EntityDragonBase")) {
@@ -38,12 +43,19 @@ public class AsmTransformer implements IClassTransformer {
 				} else if (transformedName.equals("net.minecraft.advancements.AdvancementManager")) {
 					if (StaticConfig.disableAdvancements) {
 						success = nukeAdvancementManager(node);
-					} else {
-						success = true;
 					}
-				} else if (transformedName.equals("net.minecraft.advancements.AdvancementRewards$Deserializer")) {
+					if (success && StaticConfig.muteErroringAdvancements) {
+						success = muteAdvancementManager(node);
+					}
+				} else if (transformedName.equals("net.minecraftforge.common.ForgeHooks")) {
+					Configuration cfg = new Configuration(Paths.get("config", ISeeDragons.MODID + ".cfg").toFile());
+					cfg.load();
+					if (cfg.get("general", "muteErroringAdvancements", false).getBoolean()) {
+						success = muteForgeHooksLoadAdv(node);
+					}
+				}/* else if (transformedName.equals("net.minecraft.advancements.AdvancementRewards$Deserializer")) {
 					success = fixAdvancementRewards(node);
-				} else {
+				}*/ else {
 					success = false; // should not happen
 				}
 
@@ -199,8 +211,56 @@ public class AsmTransformer implements IClassTransformer {
 		return true;
 	}
 
+	private boolean muteAdvancementManager(ClassNode node) throws NoSuchMethodException {
+		// find loadCustomAdvancements() and loadBuiltInAdvancements() methods
+		return muteMethod(findMethod(node, "func_192781_c")) && muteMethod(findMethod(node, "func_192777_a"));
+	}
+
+	private boolean muteForgeHooksLoadAdv(ClassNode node) throws NoSuchMethodException {
+		return muteMethod(findMethod(node, "lambda$loadAdvancements$0"));
+	}
+
+	private boolean muteMethod(MethodNode method) {
+		boolean flag = false;
+		AbstractInsnNode ip = method.instructions.getFirst();
+		while (ip != null) {
+			if (ip.getOpcode() == Opcodes.INVOKEINTERFACE) {
+				MethodInsnNode call = (MethodInsnNode) ip;
+				if (call.owner.equals("org/apache/logging/log4j/Logger") &&
+						call.name.equals("error") &&
+						call.desc.equals("(Ljava/lang/String;Ljava/lang/Throwable;)V")) {
+					method.instructions.insert(call, new InsnNode(Opcodes.POP2));
+					method.instructions.insert(call, new InsnNode(Opcodes.POP));
+					ip = call.getPrevious();
+					method.instructions.remove(call);
+					flag = true;
+				}
+			}
+
+			ip = ip.getNext();
+		}
+		return flag;
+	}
+
+	private static MethodNode findMethod(ClassNode node, String name) throws NoSuchMethodException {
+		return findMethod(node, name, null);
+	}
+
+	private static MethodNode findMethod(ClassNode node, String name, @Nullable String desc) throws NoSuchMethodException {
+		Optional<MethodNode> method = node.methods.stream()
+				.filter(m -> m.name.equals(name))
+				.filter(m -> desc == null || m.desc.equals(desc))
+				.findFirst();
+		if (!method.isPresent()) {
+			ISeeDragons.logger.warn("Failed to find loadCustomAdvancements() method");
+			throw new NoSuchMethodException(node.name + " " + name + " " + desc);
+		}
+		return method.get();
+	}
+
+	/*
 	private boolean fixAdvancementRewards(ClassNode node) {
-		// find breakBlock() method
+		// find deserialize() method
 		Optional<MethodNode> deserializeMethod = node.methods.stream()
 				.filter(method -> method.name.equals("deserialize"))
 				.filter(method -> method.desc.equals("(Lcom/google/gson/JsonElement;Ljava/lang/reflect/Type;Lcom/google/gson/JsonDeserializationContext;)Lnet/minecraft/advancements/AdvancementRewards;"))
@@ -261,7 +321,7 @@ public class AsmTransformer implements IClassTransformer {
 		instructions.insert(gotoInsn.getNext().getNext().getNext(), hook);
 
 		return true;
-	}
+	}*/
 
 	/*
 	 * WOW... I am so dumb! ... I was fixing code that never worked!
