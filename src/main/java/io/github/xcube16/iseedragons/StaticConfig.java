@@ -19,6 +19,12 @@ public class StaticConfig {
     @Config.Comment("The default % chance for a block to play sound and particle effects when smashed by a dragon")
     public static Integer defaultEffectChance = 100;
 
+    @Config.Comment("Disables advancements (can be used to stop log spam when recipes are tweaked)")
+    public static boolean disableAdvancements = false;
+
+    @Config.Comment("Mutes errors caused by broken advancements (can be used to stop log spam when recipes are tweaked)")
+    public static boolean muteErroringAdvancements = false;
+
     @Config.Comment("A list of block drop % chances")
     @Config.Name("DropChances")
     public static Map<String, Integer> dropChances;

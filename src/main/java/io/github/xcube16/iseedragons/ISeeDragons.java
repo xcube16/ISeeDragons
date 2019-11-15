@@ -1,6 +1,8 @@
 package io.github.xcube16.iseedragons;
 
 import com.google.common.collect.BiMap;
+import com.google.common.collect.Streams;
+import com.google.gson.JsonSyntaxException;
 import net.minecraft.block.Block;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.entity.Entity;
@@ -11,6 +13,8 @@ import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.init.Blocks;
 import net.minecraft.init.Items;
 import net.minecraft.item.*;
+import net.minecraft.item.crafting.CraftingManager;
+import net.minecraft.item.crafting.IRecipe;
 import net.minecraft.util.DamageSource;
 import net.minecraft.util.ResourceLocation;
 import net.minecraft.util.math.BlockPos;
@@ -36,9 +40,8 @@ import org.apache.logging.log4j.Logger;
 import javax.annotation.Nullable;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @Mod(modid= ISeeDragons.MODID, version = ISeeDragons.VERSION, acceptableRemoteVersions = "*", name = ISeeDragons.NAME)
 public class ISeeDragons {
@@ -350,6 +353,12 @@ public class ISeeDragons {
         }
 
         return true; // DUMMY RETURN VALUE
+    }
+
+    public static ResourceLocation[] cleanAdvancementRequardsHook(ResourceLocation[] craftable) {
+        return Arrays.stream(craftable)
+                .filter(item -> CraftingManager.getRecipe(item) != null)
+                .toArray(ResourceLocation[]::new);
     }
 
     private void registerEgg(Item egg) {

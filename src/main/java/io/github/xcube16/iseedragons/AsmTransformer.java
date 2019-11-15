@@ -17,7 +17,8 @@ public class AsmTransformer implements IClassTransformer {
 		// TODO: ok we are messing with multiple classes now... clean this up a bit
 		if(transformedName.equals("com.github.alexthe666.iceandfire.item.ItemModAxe") ||
 				transformedName.equals("com.github.alexthe666.iceandfire.entity.EntityDragonBase") ||
-				transformedName.equals("net.minecraft.advancements.AdvancementManager")) {
+				transformedName.equals("net.minecraft.advancements.AdvancementManager") ||
+				transformedName.equals("net.minecraft.advancements.AdvancementRewards$Deserializer")) {
 
 			ISeeDragons.logger.info("ATTEMPTING TO PATCH " + transformedName + "!");
 
@@ -35,7 +36,13 @@ public class AsmTransformer implements IClassTransformer {
 						success = fixJawsEscape(node);
 					}*/
 				} else if (transformedName.equals("net.minecraft.advancements.AdvancementManager")) {
-					success = nukeAdvancementManager(node);
+					if (StaticConfig.disableAdvancements) {
+						success = nukeAdvancementManager(node);
+					} else {
+						success = true;
+					}
+				} else if (transformedName.equals("net.minecraft.advancements.AdvancementRewards$Deserializer")) {
+					success = fixAdvancementRewards(node);
 				} else {
 					success = false; // should not happen
 				}
@@ -188,6 +195,70 @@ public class AsmTransformer implements IClassTransformer {
 		breakBlockMethod.get().tryCatchBlocks.clear();
 		// return;
 		breakBlockMethod.get().instructions.add(new InsnNode(Opcodes.RETURN));
+
+		return true;
+	}
+
+	private boolean fixAdvancementRewards(ClassNode node) {
+		// find breakBlock() method
+		Optional<MethodNode> deserializeMethod = node.methods.stream()
+				.filter(method -> method.name.equals("deserialize"))
+				.filter(method -> method.desc.equals("(Lcom/google/gson/JsonElement;Ljava/lang/reflect/Type;Lcom/google/gson/JsonDeserializationContext;)Lnet/minecraft/advancements/AdvancementRewards;"))
+				.findFirst();
+		if (!deserializeMethod.isPresent()) {
+			ISeeDragons.logger.warn("Failed to find deserialize() method");
+			return false;
+		}
+
+		InsnList instructions = deserializeMethod.get().instructions;
+
+		// find World#destroyBlock() call
+		AbstractInsnNode newExcInsn = instructions.getFirst();
+		while (newExcInsn != null &&
+				(newExcInsn.getOpcode() != Opcodes.NEW ||
+						!((TypeInsnNode) newExcInsn).desc.equals("com/google/gson/JsonSyntaxException"))) {
+			newExcInsn = newExcInsn.getNext();
+		}
+		if (newExcInsn == null) {
+			ISeeDragons.logger.error("Failed to find NEW JsonSyntaxException instruction");
+			return false;
+		}
+
+		while (newExcInsn.getNext() != null && newExcInsn.getNext().getOpcode() != Opcodes.ATHROW) {
+			instructions.remove(newExcInsn.getNext());
+		}
+		if (newExcInsn.getNext() == null) {
+			ISeeDragons.logger.error("Found NEW JsonSyntaxException, but could not find ATHROW after it");
+			return false;
+		}
+		instructions.remove(newExcInsn.getNext());
+
+		// Find GOTO instruction at the end of the for loop
+		AbstractInsnNode gotoInsn = newExcInsn;
+		while(gotoInsn.getNext() != null && gotoInsn.getOpcode() != Opcodes.GOTO) {
+			gotoInsn = gotoInsn.getNext();
+		}
+		if (gotoInsn.getNext() == null) {
+			ISeeDragons.logger.error("Found NEW JsonSyntaxException, but could not find GOTO after it");
+			return false;
+		}
+
+		// Remove NEW JsonSyntaxException
+		instructions.remove(newExcInsn);
+
+		InsnList hook = new InsnList();
+		// ...                  ...                                      aresourcelocation1
+		hook.add(new VarInsnNode(Opcodes.ALOAD, 9));
+		//                      ISeeDragons.cleanAdvancementRequardsHook(        ...       )
+		hook.add(new MethodInsnNode(Opcodes.INVOKESTATIC,
+				"io/github/xcube16/iseedragons/ISeeDragons",
+				"cleanAdvancementRequardsHook",
+				"([Lnet/minecraft/util/ResourceLocation;)[Lnet/minecraft/util/ResourceLocation;"));
+		// aresourcelocation1 = ...                                              ...
+		hook.add(new VarInsnNode(Opcodes.ASTORE, 9));
+
+		// insert hook
+		instructions.insert(gotoInsn.getNext().getNext().getNext(), hook);
 
 		return true;
 	}
