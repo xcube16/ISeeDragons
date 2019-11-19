@@ -25,6 +25,9 @@ public class StaticConfig {
     @Config.Comment("Mutes errors caused by broken advancements (can be used to stop log spam when recipes are tweaked)")
     public static boolean muteErroringAdvancements = false;
 
+    @Config.Comment("Prevents lightning strikes from destroying items")
+    public static boolean disableLightningItemDamage = true;
+
     @Config.Comment("A list of block drop % chances")
     @Config.Name("DropChances")
     public static Map<String, Integer> dropChances;
