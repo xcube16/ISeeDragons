@@ -23,7 +23,8 @@ public class AsmTransformer implements IClassTransformer {
 				transformedName.equals("com.github.alexthe666.iceandfire.entity.EntityDragonBase") ||
 				transformedName.equals("net.minecraft.advancements.AdvancementManager") ||
 				/*transformedName.equals("net.minecraft.advancements.AdvancementRewards$Deserializer")*/
-				transformedName.equals("net.minecraftforge.common.ForgeHooks")) {
+				transformedName.equals("net.minecraftforge.common.ForgeHooks") ||
+			    transformedName.equals("com.github.alexthe666.iceandfire.entity.EntityMyrmexEgg")) {
 
 			ISeeDragons.logger.info("ATTEMPTING TO PATCH " + transformedName + "!");
 
@@ -53,6 +54,8 @@ public class AsmTransformer implements IClassTransformer {
 					if (cfg.get("general", "muteErroringAdvancements", false).getBoolean()) {
 						success = muteForgeHooksLoadAdv(node);
 					}
+				} else if (transformedName.equals("com.github.alexthe666.iceandfire.entity.EntityMyrmexEgg")) {
+					success = fixMyrmexEggDupe(node);
 				}/* else if (transformedName.equals("net.minecraft.advancements.AdvancementRewards$Deserializer")) {
 					success = fixAdvancementRewards(node);
 				}*/ else {
@@ -60,7 +63,7 @@ public class AsmTransformer implements IClassTransformer {
 				}
 
 				if(success) {
-					ClassWriter writer = new ClassWriter(ClassWriter.COMPUTE_MAXS);
+					ClassWriter writer = new ClassWriter(ClassWriter.COMPUTE_MAXS/* + ClassWriter.COMPUTE_FRAMES can't use, or ku-boom*/);
 					//node.accept(writer);
 					node.accept(new CheckClassAdapter(writer));
 					bytes = writer.toByteArray();
@@ -207,6 +210,31 @@ public class AsmTransformer implements IClassTransformer {
 		breakBlockMethod.get().tryCatchBlocks.clear();
 		// return;
 		breakBlockMethod.get().instructions.add(new InsnNode(Opcodes.RETURN));
+
+		return true;
+	}
+
+	private boolean fixMyrmexEggDupe(ClassNode node) throws NoSuchMethodException {
+		MethodNode attackEntityFrom = findMethod(node, "func_70097_a");
+
+		InsnList deadCheck = new InsnList();
+		LabelNode continueLabel = new LabelNode();
+		// ... this.
+		deadCheck.add(new VarInsnNode(Opcodes.ALOAD, 0));
+		// ... ...  isDead
+		deadCheck.add(new FieldInsnNode(Opcodes.GETFIELD, "net/minecraft/entity/Entity", "field_70128_L", "Z"));
+		// if ( ...       ) {
+		deadCheck.add(new JumpInsnNode(Opcodes.IFEQ, continueLabel)); // if isDead is false, skip the code in the block
+
+		// return false;
+		deadCheck.add(new InsnNode(Opcodes.ICONST_0));
+		deadCheck.add(new InsnNode(Opcodes.IRETURN));
+		// }
+		deadCheck.add(new FrameNode(Opcodes.F_SAME, 3, new Object[] {"com/github/alexthe666/entity/EntityMyrmexEgg", "net/minecraft/util/DamageSource", Opcodes.FLOAT},0, new Object[] {}));
+		deadCheck.add(continueLabel);
+
+		// put the check at the start of the method
+		attackEntityFrom.instructions.insert(deadCheck);
 
 		return true;
 	}
