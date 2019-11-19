@@ -26,7 +26,7 @@ public class StaticConfig {
     public static boolean muteErroringAdvancements = false;
 
     @Config.Comment("Prevents lightning strikes from destroying items")
-    public static boolean disableLightningItemDamage = true;
+    public static boolean disableLightningItemDamage = false;
 
     @Config.Comment("A list of block drop % chances")
     @Config.Name("DropChances")

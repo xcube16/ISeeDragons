@@ -48,7 +48,7 @@ import java.util.Optional;
 public class ISeeDragons {
     public static final String MODID = "iseedragons";
     public static final String NAME = "ISeeDragons";
-    public static final String VERSION = "0.10";
+    public static final String VERSION = "0.11";
     public static final Logger logger = LogManager.getLogger(NAME);
 
     @Nullable // lazy init
