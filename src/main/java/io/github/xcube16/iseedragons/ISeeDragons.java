@@ -7,6 +7,7 @@ import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityList;
 import net.minecraft.entity.EntityLivingBase;
 import net.minecraft.entity.EnumCreatureAttribute;
+import net.minecraft.entity.item.EntityItem;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.init.Blocks;
 import net.minecraft.init.Items;
@@ -21,6 +22,7 @@ import net.minecraftforge.common.config.Config;
 import net.minecraftforge.common.config.ConfigManager;
 import net.minecraftforge.event.RegistryEvent;
 import net.minecraftforge.event.entity.EntityMountEvent;
+import net.minecraftforge.event.entity.EntityStruckByLightningEvent;
 import net.minecraftforge.event.entity.living.LivingAttackEvent;
 import net.minecraftforge.event.entity.living.LivingHurtEvent;
 import net.minecraftforge.fml.client.event.ConfigChangedEvent;
@@ -178,6 +180,13 @@ public class ISeeDragons {
         } catch (Exception e) {
             logger.error("Critical error while fixing tool/armor repair for " + toolId, e);
         }
+    }
+
+    @SubscribeEvent
+    public void lightningStruckEntity(EntityStruckByLightningEvent event) {
+        //Prevent lightning from destroying items
+        if(StaticConfig.disableLightningItemDamage && (event.getEntity() instanceof EntityItem))
+            event.setCanceled(true);
     }
 
     @SubscribeEvent(priority = EventPriority.LOW) // run after Ice and Fire
