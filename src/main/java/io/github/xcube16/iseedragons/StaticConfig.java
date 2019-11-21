@@ -28,6 +28,9 @@ public class StaticConfig {
     @Config.Comment("Prevents lightning strikes from destroying items")
     public static boolean disableLightningItemDamage = false;
 
+    @Config.Comment("Prevents Tough As Nails from creating an extra attack entity event")
+    public static boolean preventTANAttackEntityEvent = true;
+
     @Config.Comment("A list of block drop % chances")
     @Config.Name("DropChances")
     public static Map<String, Integer> dropChances;
