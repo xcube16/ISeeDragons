@@ -1,5 +1,6 @@
 package io.github.xcube16.iseedragons;
 
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 
 import net.minecraft.entity.Entity;
@@ -15,50 +16,37 @@ import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
 
 public class FakeThirstStatHandler
 {
-	Object handler;
-	boolean initialized = false;
-	Method onPlayerJump;
-	Method onPlayerHurt;
-	Method onBlockBreak;
+	private Object handler;
+	private Method onPlayerJump;
+	private Method onPlayerHurt;
+	private Method onBlockBreak;
 	
-	Method getThirstData;
+	private Method getThirstData;
 	
-	Class thirstHandlerClass;
-	Method addExhaustion;
+	private Class thirstHandlerClass;
+	private Method addExhaustion;
 	
-	public FakeThirstStatHandler(Object handler)
+	public FakeThirstStatHandler(Object handler) throws Exception
 	{
 		this.handler = handler;
-		try
-		{
-			onPlayerJump = handler.getClass().getMethod("onPlayerJump", LivingJumpEvent.class);
-			onPlayerHurt = handler.getClass().getMethod("onPlayerHurt", LivingHurtEvent.class);
-			onBlockBreak = handler.getClass().getMethod("onBlockBreak", BlockEvent.BreakEvent.class);
-			
-			getThirstData = Class.forName("toughasnails.api.thirst.ThirstHelper").getMethod("getThirstData", EntityPlayer.class);
-			
-			thirstHandlerClass = Class.forName("toughasnails.thirst.ThirstHandler");
-			addExhaustion = thirstHandlerClass.getMethod("addExhaustion", float.class);
-			
-			//No exceptions, report as successfully initialized
-			initialized = true;
-		}
-		catch(Exception e)
-		{
-			ISeeDragons.logger.error("Failed to initialize FakeThirstStatHandler");
-		}
+		onPlayerJump = handler.getClass().getMethod("onPlayerJump", LivingJumpEvent.class);
+		onPlayerHurt = handler.getClass().getMethod("onPlayerHurt", LivingHurtEvent.class);
+		onBlockBreak = handler.getClass().getMethod("onBlockBreak", BlockEvent.BreakEvent.class);
+		
+		getThirstData = Class.forName("toughasnails.api.thirst.ThirstHelper").getMethod("getThirstData", EntityPlayer.class);
+		
+		thirstHandlerClass = Class.forName("toughasnails.thirst.ThirstHandler");
+		addExhaustion = thirstHandlerClass.getMethod("addExhaustion", float.class);
 	}
 	
 	@SubscribeEvent
 	public void onPlayerJump(LivingJumpEvent event)
 	{
-		if(!initialized)
-			return;
 		try 
 		{
 			onPlayerJump.invoke(handler, event);
 		} 
-		catch (Exception e) 
+		catch (InvocationTargetException | IllegalAccessException | IllegalArgumentException e) 
 		{
 			failMethod(e);
 		}
@@ -67,13 +55,11 @@ public class FakeThirstStatHandler
 	@SubscribeEvent
 	public void onPlayerHurt(LivingHurtEvent event)
 	{
-		if(!initialized)
-			return;
 		try 
 		{
 			onPlayerHurt.invoke(handler, event);
 		} 
-		catch (Exception e) 
+		catch (InvocationTargetException | IllegalAccessException | IllegalArgumentException e) 
 		{
 			failMethod(e);
 		}
@@ -82,13 +68,11 @@ public class FakeThirstStatHandler
 	@SubscribeEvent
 	public void onBlockBreak(BlockEvent.BreakEvent event)
 	{
-		if(!initialized)
-			return;
 		try 
 		{
 			onBlockBreak.invoke(handler, event);
 		} 
-		catch (Exception e) 
+		catch (InvocationTargetException | IllegalAccessException | IllegalArgumentException e) 
 		{
 			failMethod(e);
 		}
@@ -97,8 +81,6 @@ public class FakeThirstStatHandler
 	@SubscribeEvent
 	public void onAttackEntity(AttackEntityEvent event)
 	{
-		if(!initialized)
-			return;
 		try 
 		{
 			World world = event.getEntity().world;
@@ -112,7 +94,7 @@ public class FakeThirstStatHandler
 				addExhaustion.invoke(thirstHandler, 0.3F);
 			}
 		}
-		catch (Exception e)
+		catch (InvocationTargetException | IllegalAccessException | IllegalArgumentException e) 
 		{
 			failMethod(e);
 		}
@@ -121,8 +103,8 @@ public class FakeThirstStatHandler
 	
 	private void failMethod(Exception e)
 	{
-		initialized = false;
-		ISeeDragons.logger.error("FakeThirstStatHandler failed reflection");
+		//Reflection failure, print out the stack trace and cause runtime exception
 		e.printStackTrace();
+		throw new RuntimeException("FakeThirstStatHandler failed reflection");
 	}
 }

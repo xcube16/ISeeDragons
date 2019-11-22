@@ -131,12 +131,22 @@ public class ISeeDragons {
             {
                 if (listener_entry.getKey().getClass().getName().equals("toughasnails.handler.thirst.ThirstStatHandler"))
                 {
+                    found_listener=true;
                     //Create the FakeThirstStatHandler and send it the real one to use
-                    MinecraftForge.EVENT_BUS.register(new FakeThirstStatHandler(listener_entry.getKey()));
+                    try 
+                    {
+                        MinecraftForge.EVENT_BUS.register(new FakeThirstStatHandler(listener_entry.getKey()));
+                    } 
+                    catch (Exception e) 
+                    {
+                        //If an exception is thrown, FakeThirstStatHandler never gets added to the event bus
+                        ISeeDragons.logger.error("Failed to initialize FakeThirstStatHandler");
+                        e.printStackTrace();
+                        break;
+                    }
                     
                     //Unregister the real ThirstStatHandler
                     MinecraftForge.EVENT_BUS.unregister(listener_entry.getKey());
-                    found_listener=true;
                     break;
                 }
             }
