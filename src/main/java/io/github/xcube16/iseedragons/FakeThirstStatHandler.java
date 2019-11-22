@@ -104,7 +104,6 @@ public class FakeThirstStatHandler
 	private void failMethod(Exception e)
 	{
 		//Reflection failure, print out the stack trace and cause runtime exception
-		e.printStackTrace();
-		throw new RuntimeException("FakeThirstStatHandler failed reflection");
+		throw new RuntimeException("FakeThirstStatHandler failed reflection", e);
 	}
 }
