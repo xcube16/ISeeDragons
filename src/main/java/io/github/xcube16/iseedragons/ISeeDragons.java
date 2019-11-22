@@ -26,12 +26,16 @@ import net.minecraftforge.event.entity.EntityStruckByLightningEvent;
 import net.minecraftforge.event.entity.living.LivingAttackEvent;
 import net.minecraftforge.event.entity.living.LivingHurtEvent;
 import net.minecraftforge.fml.client.event.ConfigChangedEvent;
+import net.minecraftforge.fml.common.Loader;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.common.event.FMLPostInitializationEvent;
 import net.minecraftforge.fml.common.event.FMLPreInitializationEvent;
+import net.minecraftforge.fml.common.eventhandler.EventBus;
 import net.minecraftforge.fml.common.eventhandler.EventPriority;
+import net.minecraftforge.fml.common.eventhandler.IEventListener;
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
 import net.minecraftforge.fml.common.registry.EntityRegistry;
+import net.minecraftforge.fml.relauncher.ReflectionHelper;
 import net.minecraftforge.oredict.OreDictionary;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -39,16 +43,18 @@ import org.apache.logging.log4j.Logger;
 import javax.annotation.Nullable;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Mod(modid= ISeeDragons.MODID, version = ISeeDragons.VERSION, acceptableRemoteVersions = "*", name = ISeeDragons.NAME)
 public class ISeeDragons {
     public static final String MODID = "iseedragons";
     public static final String NAME = "ISeeDragons";
-    public static final String VERSION = "0.11";
+    public static final String VERSION = "0.12";
     public static final Logger logger = LogManager.getLogger(NAME);
 
     @Nullable // lazy init
@@ -79,6 +85,7 @@ public class ISeeDragons {
         MinecraftForge.EVENT_BUS.register(this);
     }
 
+    @SuppressWarnings("deprecation")
     @Mod.EventHandler
     public void postInit(FMLPostInitializationEvent event) {
 
@@ -114,6 +121,41 @@ public class ISeeDragons {
             }
         });
 
+        if(StaticConfig.preventTANAttackEntityEvent && Loader.isModLoaded("toughasnails"))
+        {
+            logger.info("Fixing TAN's attack entity event damage problem...");
+            boolean found_listener = false;
+            //Find the ThirstStatHandler in the event bus and remove it
+            ConcurrentHashMap<Object, ArrayList<IEventListener>> listeners = ReflectionHelper.getPrivateValue(EventBus.class, MinecraftForge.EVENT_BUS, "listeners");
+            for(Map.Entry<Object, ArrayList<IEventListener>> listener_entry : listeners.entrySet())
+            {
+                if (listener_entry.getKey().getClass().getName().equals("toughasnails.handler.thirst.ThirstStatHandler"))
+                {
+                    found_listener=true;
+                    //Create the FakeThirstStatHandler and send it the real one to use
+                    try 
+                    {
+                        MinecraftForge.EVENT_BUS.register(new FakeThirstStatHandler(listener_entry.getKey()));
+                    } 
+                    catch (Exception e) 
+                    {
+                        //If an exception is thrown, FakeThirstStatHandler never gets added to the event bus
+                        ISeeDragons.logger.error("Failed to initialize FakeThirstStatHandler");
+                        e.printStackTrace();
+                        break;
+                    }
+                    
+                    //Unregister the real ThirstStatHandler
+                    MinecraftForge.EVENT_BUS.unregister(listener_entry.getKey());
+                    break;
+                }
+            }
+            if(!found_listener)
+            {
+                logger.error("Could not find toughasnails ThirstStatHandler event listener");
+                return;
+            }
+        }
     }
 
     private void fixToolRepair(String toolId, String repairItemId, int meta) {
