@@ -1,6 +1,7 @@
 package io.github.xcube16.iseedragons;
 
 import com.google.common.collect.BiMap;
+import io.github.xcube16.iseedragons.modules.ModEventModule;
 import net.minecraft.block.Block;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.entity.Entity;
@@ -28,6 +29,7 @@ import net.minecraftforge.event.entity.living.LivingHurtEvent;
 import net.minecraftforge.fml.client.event.ConfigChangedEvent;
 import net.minecraftforge.fml.common.Loader;
 import net.minecraftforge.fml.common.Mod;
+import net.minecraftforge.fml.common.discovery.ASMDataTable;
 import net.minecraftforge.fml.common.event.FMLPostInitializationEvent;
 import net.minecraftforge.fml.common.event.FMLPreInitializationEvent;
 import net.minecraftforge.fml.common.eventhandler.EventBus;
@@ -83,6 +85,42 @@ public class ISeeDragons {
     public void preinit(FMLPreInitializationEvent event)
     {
         MinecraftForge.EVENT_BUS.register(this);
+
+        //Add classes to event bus with the annotation ModEventModule
+        for(ASMDataTable.ASMData rawdata : event.getAsmData().getAll(ModEventModule.class.getName()))
+        {
+            //Process Annotation
+            Map<String,Object> annotationdata = rawdata.getAnnotationInfo();
+            String name = (String) annotationdata.get("name");
+            String dependencystr = (String) annotationdata.get("dependencies");
+            String[] dependencies = dependencystr.split(";");
+
+            //Check that all dependencies are loaded
+            boolean dependency_check = true;
+            for(String dependency : dependencies)
+            {
+                if(!Loader.isModLoaded(dependency))
+                {
+                    dependency_check=false;
+                    ISeeDragons.logger.info("Skipping ModEventModule "+name+", mod "+dependency+" is not loaded.");
+                    break;
+                }
+            }
+            if(!dependency_check)
+                continue;
+
+            //Register the module to the event bus
+            try 
+            {
+                Class module = Class.forName(rawdata.getClassName());
+                MinecraftForge.EVENT_BUS.register(module.newInstance());
+                ISeeDragons.logger.info("Registering ModEventModule "+name);
+            }
+            catch (Exception e)
+            {
+                throw new RuntimeException("Error loading ModEventModule "+name+" at "+rawdata.getClassName(),e);
+            }
+        }
     }
 
     @SuppressWarnings("deprecation")
@@ -153,7 +191,6 @@ public class ISeeDragons {
             if(!found_listener)
             {
                 logger.error("Could not find toughasnails ThirstStatHandler event listener");
-                return;
             }
         }
     }

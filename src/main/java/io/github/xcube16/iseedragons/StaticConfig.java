@@ -32,6 +32,9 @@ public class StaticConfig {
     @Config.RequiresMcRestart
     public static boolean preventTANAttackEntityEvent = true;
 
+    @Config.Comment("Clean up Recurrent Complex structures automatically to avoid high RAM usage and lag")
+    public static boolean cleanupRecurrentComplex = true;
+
     @Config.Comment("A list of block drop % chances")
     @Config.Name("DropChances")
     public static Map<String, Integer> dropChances;
