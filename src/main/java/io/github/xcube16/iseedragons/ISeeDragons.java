@@ -3,11 +3,9 @@ package io.github.xcube16.iseedragons;
 import com.google.common.collect.BiMap;
 import net.minecraft.block.Block;
 import net.minecraft.block.state.IBlockState;
-import net.minecraft.entity.Entity;
-import net.minecraft.entity.EntityList;
-import net.minecraft.entity.EntityLivingBase;
-import net.minecraft.entity.EnumCreatureAttribute;
+import net.minecraft.entity.*;
 import net.minecraft.entity.item.EntityItem;
+import net.minecraft.entity.passive.EntityTameable;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.init.Blocks;
 import net.minecraft.init.Items;
@@ -16,6 +14,7 @@ import net.minecraft.item.crafting.CraftingManager;
 import net.minecraft.util.DamageSource;
 import net.minecraft.util.ResourceLocation;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.MathHelper;
 import net.minecraft.world.World;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.common.config.Config;
@@ -39,6 +38,7 @@ import net.minecraftforge.fml.relauncher.ReflectionHelper;
 import net.minecraftforge.oredict.OreDictionary;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import scala.collection.script.End;
 
 import javax.annotation.Nullable;
 import java.lang.reflect.Field;
@@ -54,8 +54,10 @@ import java.util.concurrent.ConcurrentHashMap;
 public class ISeeDragons {
     public static final String MODID = "iseedragons";
     public static final String NAME = "ISeeDragons";
-    public static final String VERSION = "0.12";
+    public static final String VERSION = "0.12-SNAPSHOT";
     public static final Logger logger = LogManager.getLogger(NAME);
+
+    private static ISeeDragons instance;
 
     @Nullable // lazy init
     private Method dragonSetSleeping;
@@ -78,6 +80,12 @@ public class ISeeDragons {
     private static Map<Block, Integer> effectChances;
 
     private Map<Item, Float> extraUndeadDamage;
+
+    public ISeeDragons() {
+        if (instance == null) {
+            instance = this;
+        }
+    }
 
     @Mod.EventHandler
     public void preinit(FMLPreInitializationEvent event)
@@ -370,7 +378,7 @@ public class ISeeDragons {
     }
 
     /**
-     * This method is called by EntityDragonBase from ASMed code! Don't change its signature!
+     * This method is called by EntityDragonBase from ASM'ed code! Don't change its signature!
      *
      * @param pos
      * @param world
@@ -405,6 +413,50 @@ public class ISeeDragons {
         return true; // DUMMY RETURN VALUE
     }
 
+    /**
+     * This method is called by EntityDragonBase from ASM'ed code! Don't change its signature!
+     *
+     * @param dragon
+     * @param prey
+     * @param animTick
+     */
+    public static void dragonShakePrayHook(EntityTameable dragon, Entity prey, int animTick) {
+        if (dragon.world.isRemote) return;
+        if (animTick == 56) {
+            prey.attackEntityFrom(
+                    DamageSource.causeMobDamage(dragon),
+                    prey instanceof EntityPlayer ? 17.0F :
+                            (float)dragon.getEntityAttribute(SharedMonsterAttributes.ATTACK_DAMAGE).getAttributeValue() * 4.0F);
+        } else if (animTick > 60) {
+            // animTick should always be >= 56, but lets leave a sanity check
+            // in case someone messes with the ASM code
+            prey.dismountRidingEntity();
+
+            // NOTE: HANDLE POST-DISMOUNT EFFECTS IN THE EVENT HANDLER!
+            // (that way dismounting with shift in the last tick still causes the effects)
+        }
+    }
+
+    /**
+     * Called from EntityPlayer when
+     * (!player.world.isRemote && player.isSneaking() && player.isRiding())
+     * to see if the player is allowed to dismount. Canceling Forge's event causes updateRidden() to
+     * not be called when a player is holding shift.
+     *
+     * note: This does NOT get called when a player mounts another entity.
+     * (ex: right-clicking a boat to escape a minecart)
+     *
+     * @param player The mounted player
+     * @return True to allow dismount, false to block and do normal updateRidden()
+     */
+    public static boolean canPlayerDismountHook(EntityPlayer player) {
+        Entity mount = player.getRidingEntity();
+        if (mount != null) {
+            return ISeeDragons.instance.canDismount(mount);
+        }
+        return true;
+    }
+
     public static ResourceLocation[] cleanAdvancementRequardsHook(ResourceLocation[] craftable) {
         return Arrays.stream(craftable)
                 .filter(item -> CraftingManager.getRecipe(item) != null)
@@ -425,7 +477,7 @@ public class ISeeDragons {
         //EntityRegistry.getEntry(e.getEntity().getClass()).getRegistryName();
 
         //note: EntityList.getKey(e.getEntity()) is null when a/the player is hit
-        if (this.isDragon(EntityList.getKey(e.getEntity())) && e.getAmount() > 0.0F) {
+        if (this.isDragon(e.getEntity()) && e.getAmount() > 0.0F) {
             try {
                 if (this.dragonSetSleeping == null) {
                     this.dragonSetSleeping = this.getMethodInHierarchy(e.getEntity().getClass(), "setSleeping", boolean.class);
@@ -447,64 +499,70 @@ public class ISeeDragons {
                 } else {
                     // Fixes TAN picking up on infinite micro-jump thingy when a player dismounts anything while holding space
                     ((EntityPlayer) e.getEntityMounting()).setJumping(false);
+
+                    this.handleDismount(e.getEntityBeingMounted(), e.getEntityMounting());
                 }
             } else {
                 @Nullable
                 Entity previousMount = e.getEntityMounting().getRidingEntity();
-                if (previousMount != null && !this.canDismount(previousMount)) {
-                    e.setCanceled(true);
+                if (previousMount != null) {
+                    if (!this.canDismount(previousMount)) {
+                        e.setCanceled(true);
+                    } else {
+                        this.handleDismount(previousMount, e.getEntityMounting());
+                    }
                 }
             }
         }
     }
 
-    private boolean canDismount(Entity entity) {
-        if (entity.isDead || (entity instanceof EntityLivingBase && ((EntityLivingBase) entity).getHealth() <= 0.0f)) { // sanity check. Yes, players get stuck without this :P
+    private boolean canDismount(Entity dragon) {
+        if (dragon.isDead || (dragon instanceof EntityLivingBase && ((EntityLivingBase) dragon).getHealth() <= 0.0f)) { // sanity check. Yes, players get stuck without this :P
             return true;
         }
-        ResourceLocation id = EntityList.getKey(entity.getClass());
-        if (this.isDragon(id)) {
+        if (this.isDragon(dragon)) {
             try {
                 if (this.dragonCurrentAnimation == null) {
-                    this.dragonCurrentAnimation = this.getFieldInHierarchy(entity.getClass(), "currentAnimation");
+                    this.dragonCurrentAnimation = this.getFieldInHierarchy(dragon.getClass(), "currentAnimation");
                     this.dragonCurrentAnimation.setAccessible(true);
                 }
                 if (this.dragonAnimationTick == null) {
-                    this.dragonAnimationTick = this.getFieldInHierarchy(entity.getClass(), "animationTick");
+                    this.dragonAnimationTick = this.getFieldInHierarchy(dragon.getClass(), "animationTick");
                     this.dragonAnimationTick.setAccessible(true);
                 }
                 if (this.dragon_ANIMATION_SHAKEPREY == null) {
-                    this.dragon_ANIMATION_SHAKEPREY = this.getFieldInHierarchy(entity.getClass(), "ANIMATION_SHAKEPREY");
+                    this.dragon_ANIMATION_SHAKEPREY = this.getFieldInHierarchy(dragon.getClass(), "ANIMATION_SHAKEPREY");
                 }
 
-                Object animation = this.dragonCurrentAnimation.get(entity);
-                Object aniShakePray = this.dragon_ANIMATION_SHAKEPREY.get(entity);
-                int aniTick = (Integer) this.dragonAnimationTick.get(entity);
+                Object animation = this.dragonCurrentAnimation.get(dragon);
+                Object aniShakePray = this.dragon_ANIMATION_SHAKEPREY.get(dragon);
+                int aniTick = (Integer) this.dragonAnimationTick.get(dragon);
 
-                if (animation == aniShakePray && aniTick <= 55) {
+                if (animation == aniShakePray && aniTick <= 60) {
                     return false;
                 }
 
             } catch (Exception ex) {
+                ex.printStackTrace();
                 logger.error("Failed to check dragon state", ex);
             }
-        } else if (isCyclops(id)) {
+        } else if (isCyclops(dragon)) {
             try {
                 if (this.cyclopsCurrentAnimation == null) {
-                    this.cyclopsCurrentAnimation = this.getFieldInHierarchy(entity.getClass(), "currentAnimation");
+                    this.cyclopsCurrentAnimation = this.getFieldInHierarchy(dragon.getClass(), "currentAnimation");
                     this.cyclopsCurrentAnimation.setAccessible(true);
                 }
                 if (this.cyclopsAnimationTick == null) {
-                    this.cyclopsAnimationTick = this.getFieldInHierarchy(entity.getClass(), "animationTick");
+                    this.cyclopsAnimationTick = this.getFieldInHierarchy(dragon.getClass(), "animationTick");
                     this.cyclopsAnimationTick.setAccessible(true);
                 }
                 if (this.cyclops_ANIMATION_EATPLAYER == null) {
-                    this.cyclops_ANIMATION_EATPLAYER = this.getFieldInHierarchy(entity.getClass(), "ANIMATION_EATPLAYER");
+                    this.cyclops_ANIMATION_EATPLAYER = this.getFieldInHierarchy(dragon.getClass(), "ANIMATION_EATPLAYER");
                 }
 
-                Object animation = this.cyclopsCurrentAnimation.get(entity);
-                Object aniShakePray = this.cyclops_ANIMATION_EATPLAYER.get(entity);
-                int aniTick = (Integer) this.cyclopsAnimationTick.get(entity);
+                Object animation = this.cyclopsCurrentAnimation.get(dragon);
+                Object aniShakePray = this.cyclops_ANIMATION_EATPLAYER.get(dragon);
+                int aniTick = (Integer) this.cyclopsAnimationTick.get(dragon);
 
                 if (animation == aniShakePray && aniTick < 32) {
                     return false;
@@ -515,6 +573,39 @@ public class ISeeDragons {
             }
         }
         return true;
+    }
+
+    private void handleDismount(Entity mount, Entity rider) {
+        if (mount.isDead || (mount instanceof EntityLivingBase && ((EntityLivingBase) mount).getHealth() <= 0.0f)) { // sanity check. Yes, players get stuck without this :P
+            // don't apply any effects when the mount is dead
+            return;
+        }
+        if (this.isDragon(mount)) {
+            try {
+                if (this.dragonCurrentAnimation == null) {
+                    this.dragonCurrentAnimation = this.getFieldInHierarchy(mount.getClass(), "currentAnimation");
+                    this.dragonCurrentAnimation.setAccessible(true);
+                }
+                if (this.dragon_ANIMATION_SHAKEPREY == null) {
+                    this.dragon_ANIMATION_SHAKEPREY = this.getFieldInHierarchy(mount.getClass(), "ANIMATION_SHAKEPREY");
+                }
+
+                Object animation = this.dragonCurrentAnimation.get(mount);
+                Object aniShakePray = this.dragon_ANIMATION_SHAKEPREY.get(mount);
+
+                if (animation == aniShakePray && !mount.world.isRemote) {
+                    float yaw = mount.getRotationYawHead();
+                    //rider.motionY = rider.motionY + 0.1;
+                    //rider.motionX = rider.motionX - 0.1 * MathHelper.cos(yaw);
+                    //rider.motionZ = rider.motionZ - 0.1 * MathHelper.sin(yaw);
+                    //rider.velocityChanged = true;
+                }
+
+            } catch (Exception ex) {
+                ex.printStackTrace();
+                logger.error("Failed to check dragon state", ex);
+            }
+        }
     }
 
     private Optional<Integer> getRenderBoost(@Nullable ResourceLocation id) {
@@ -534,7 +625,9 @@ public class ISeeDragons {
         return Optional.empty();*/
     }
 
-    private boolean isDragon(@Nullable ResourceLocation id) {
+    private boolean isDragon(Entity entity) {
+        @Nullable
+        ResourceLocation id = EntityList.getKey(entity);
         if (id == null) {
             return false;
         }
@@ -544,7 +637,9 @@ public class ISeeDragons {
                 id.getResourcePath().equals("firedragon"));
     }
 
-    private boolean isCyclops(@Nullable ResourceLocation id) {
+    private boolean isCyclops(Entity entity) {
+        @Nullable
+        ResourceLocation id = EntityList.getKey(entity);
         if (id == null) {
             return false;
         }

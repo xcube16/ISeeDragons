@@ -2,6 +2,7 @@ package io.github.xcube16.iseedragons;
 
 import net.minecraft.launchwrapper.IClassTransformer;
 import net.minecraftforge.common.config.Configuration;
+import org.lwjgl.Sys;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.Opcodes;
@@ -24,7 +25,8 @@ public class AsmTransformer implements IClassTransformer {
 				transformedName.equals("net.minecraft.advancements.AdvancementManager") ||
 				/*transformedName.equals("net.minecraft.advancements.AdvancementRewards$Deserializer")*/
 				transformedName.equals("net.minecraftforge.common.ForgeHooks") ||
-			    transformedName.equals("com.github.alexthe666.iceandfire.entity.EntityMyrmexEgg")) {
+			    transformedName.equals("com.github.alexthe666.iceandfire.entity.EntityMyrmexEgg") ||
+				transformedName.equals("net.minecraft.entity.player.EntityPlayer")) {
 
 			ISeeDragons.logger.info("ATTEMPTING TO PATCH " + transformedName + "!");
 
@@ -37,7 +39,8 @@ public class AsmTransformer implements IClassTransformer {
 				if (transformedName.equals("com.github.alexthe666.iceandfire.item.ItemModAxe")) {
 					success = fixItemModAxe(node);
 				} else if (transformedName.equals("com.github.alexthe666.iceandfire.entity.EntityDragonBase")) {
-					success = fixEntityDragonBase(node);
+					success = fixEntityDragonBase(node) &&
+							hookDragonShakePray(node);
 					/*if (success) {
 						success = fixJawsEscape(node);
 					}*/
@@ -56,6 +59,8 @@ public class AsmTransformer implements IClassTransformer {
 					}
 				} else if (transformedName.equals("com.github.alexthe666.iceandfire.entity.EntityMyrmexEgg")) {
 					success = fixMyrmexEggDupe(node);
+				} else if (transformedName.equals("net.minecraft.entity.player.EntityPlayer")) {
+					success = hookPlayerUpdateRidden(node);
 				}/* else if (transformedName.equals("net.minecraft.advancements.AdvancementRewards$Deserializer")) {
 					success = fixAdvancementRewards(node);
 				}*/ else {
@@ -185,7 +190,8 @@ public class AsmTransformer implements IClassTransformer {
 		callHook.add(new MethodInsnNode(Opcodes.INVOKESTATIC,
 				"io/github/xcube16/iseedragons/ISeeDragons",
 				"dragonBreakBlockHook",
-				"(Lnet/minecraft/world/World;Lnet/minecraft/util/math/BlockPos;Lnet/minecraft/block/state/IBlockState;)Z"));
+				"(Lnet/minecraft/world/World;Lnet/minecraft/util/math/BlockPos;Lnet/minecraft/block/state/IBlockState;)Z",
+				false));
 		breakBlockMethod.get().instructions.insertBefore(breakBlockCall, callHook);
 
 		breakBlockMethod.get().instructions.remove(breakBlockCall);
@@ -239,6 +245,108 @@ public class AsmTransformer implements IClassTransformer {
 		return true;
 	}
 
+	/**
+	 * Adds a hook to EntityDragonBase#updatePreyInMouth() so we can do some
+	 * custom logic as well as fix players using dismount to escape.
+	 */
+	private boolean hookDragonShakePray(ClassNode node) throws NoSuchMethodException {
+		MethodNode updatePreyInMouth = findMethod(node, "updatePreyInMouth");
+
+		// find the first if block
+		AbstractInsnNode ifNullInsn = updatePreyInMouth.instructions.getFirst();
+		while (ifNullInsn != null &&
+				ifNullInsn.getOpcode() != Opcodes.IFNULL) {
+			ifNullInsn = ifNullInsn.getNext();
+		}
+		if (ifNullInsn == null) {
+			ISeeDragons.logger.error("Failed to find ifnull instruction in EntityDragonBase#updatePreyInMouth()");
+			return false;
+		}
+
+		// remove all instructions inside the if statement (just past the label on the next instruction)
+		//                         \/ ifnull  \/ label2  \/ JUNK!
+		AbstractInsnNode toRemove = ifNullInsn.getNext().getNext();
+		// loop until we hit the label referenced by the ifnull instruction or we hit the end of the method
+		while (toRemove != null &&
+				(toRemove.getType() != AbstractInsnNode.LABEL ||
+				toRemove != ((JumpInsnNode) ifNullInsn).label)) {
+			AbstractInsnNode next = toRemove.getNext();
+			updatePreyInMouth.instructions.remove(toRemove); // bye bye!
+			toRemove = next;
+		}
+		if (toRemove == null) {
+			ISeeDragons.logger.error("Failed to find end of if statement in EntityDragonBase#updatePreyInMouth()");
+			return false;
+		}
+
+		// call hook method in ISeeDragons to do the custom logic
+		InsnList callHook = new InsnList();
+
+		// Get the stack (the hook's arguments) ready
+		callHook.add(new VarInsnNode(Opcodes.ALOAD, 0)); // stack: <this>
+		callHook.add(new VarInsnNode(Opcodes.ALOAD, 1)); // stack: <this, pray>
+		// this. ...
+		callHook.add(new VarInsnNode(Opcodes.ALOAD, 0));
+		// ... .getAnimationTick()
+		callHook.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL,
+				"com/github/alexthe666/iceandfire/entity/EntityDragonBase",
+				"getAnimationTick",
+				"()I", // stack: <this, pray, int>
+				false));
+
+		// ISeeDragons.dragonBreakBlockHook( dump stack: <this, pray, int> )
+		callHook.add(new MethodInsnNode(Opcodes.INVOKESTATIC,
+				"io/github/xcube16/iseedragons/ISeeDragons",
+				"dragonShakePrayHook",
+				"(Lnet/minecraft/entity/passive/EntityTameable;Lnet/minecraft/entity/Entity;I)V",
+				false));
+
+		// add the new instructions after label2
+		updatePreyInMouth.instructions.insert(ifNullInsn.getNext(), callHook);
+		return true;
+	}
+
+	private boolean hookPlayerUpdateRidden(ClassNode node) throws NoSuchMethodException {
+		// EntityPlayer#updateRidden()
+		MethodNode updateRidden = findMethod(node, "func_70098_U");
+
+		// find the first if block
+		boolean foundFirst = false;
+		AbstractInsnNode secondIfeqInsn = updateRidden.instructions.getFirst();
+		while (secondIfeqInsn != null &&
+				(secondIfeqInsn.getOpcode() != Opcodes.IFEQ ||
+						!foundFirst)) {
+			if (secondIfeqInsn.getOpcode() == Opcodes.IFEQ) {
+				foundFirst = true;
+			}
+			secondIfeqInsn = secondIfeqInsn.getNext();
+		}
+		if (secondIfeqInsn == null) {
+			ISeeDragons.logger.error("Failed to find second ifeq instruction in EntityPlayer#updateRidden");
+			return false;
+		}
+
+		LabelNode elseBlock = ((JumpInsnNode) secondIfeqInsn).label;
+
+		// call hook method in ISeeDragons to see if the player can dismount
+		InsnList callHook = new InsnList();
+
+		// Get the stack (the hook's arguments) ready
+		callHook.add(new VarInsnNode(Opcodes.ALOAD, 0)); // stack: <this>
+		// ISeeDragons.dragonBreakBlockHook( dump stack: <this> ) stack after call: <boolean>
+		callHook.add(new MethodInsnNode(Opcodes.INVOKESTATIC,
+				"io/github/xcube16/iseedragons/ISeeDragons",
+				"canPlayerDismountHook",
+				"(Lnet/minecraft/entity/player/EntityPlayer;)Z",
+				false));
+		// jump to else block if false
+		callHook.add(new JumpInsnNode(Opcodes.IFEQ, elseBlock));
+
+		// add the new instructions after the second ifeq
+		updateRidden.instructions.insert(secondIfeqInsn, callHook);
+		return true;
+	}
+
 	private boolean muteAdvancementManager(ClassNode node) throws NoSuchMethodException {
 		// find loadCustomAdvancements() and loadBuiltInAdvancements() methods
 		return muteMethod(findMethod(node, "func_192781_c")) && muteMethod(findMethod(node, "func_192777_a"));
@@ -248,6 +356,12 @@ public class AsmTransformer implements IClassTransformer {
 		return muteMethod(findMethod(node, "lambda$loadAdvancements$0"));
 	}
 
+	/**
+	 * Tell a method to STFU when it tries to log a spammy error message!
+	 *
+	 * @param method The method to be muted
+	 * @return true if we found one or more Logger#error(String, Throwable) calls
+	 */
 	private boolean muteMethod(MethodNode method) {
 		boolean flag = false;
 		AbstractInsnNode ip = method.instructions.getFirst();
@@ -280,7 +394,7 @@ public class AsmTransformer implements IClassTransformer {
 				.filter(m -> desc == null || m.desc.equals(desc))
 				.findFirst();
 		if (!method.isPresent()) {
-			ISeeDragons.logger.warn("Failed to find loadCustomAdvancements() method");
+			ISeeDragons.logger.warn("Failed to find " + name + "() method");
 			throw new NoSuchMethodException(node.name + " " + name + " " + desc);
 		}
 		return method.get();
