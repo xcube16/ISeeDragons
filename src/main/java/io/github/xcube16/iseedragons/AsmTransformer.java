@@ -26,7 +26,8 @@ public class AsmTransformer implements IClassTransformer {
 				/*transformedName.equals("net.minecraft.advancements.AdvancementRewards$Deserializer")*/
 				transformedName.equals("net.minecraftforge.common.ForgeHooks") ||
 			    transformedName.equals("com.github.alexthe666.iceandfire.entity.EntityMyrmexEgg") ||
-				transformedName.equals("net.minecraft.entity.player.EntityPlayer")) {
+				transformedName.equals("net.minecraft.entity.player.EntityPlayer") ||
+				transformedName.equals("com.github.alexthe666.iceandfire.entity.EntitySeaSerpent")) {
 
 			ISeeDragons.logger.info("ATTEMPTING TO PATCH " + transformedName + "!");
 
@@ -61,6 +62,8 @@ public class AsmTransformer implements IClassTransformer {
 					success = fixMyrmexEggDupe(node);
 				} else if (transformedName.equals("net.minecraft.entity.player.EntityPlayer")) {
 					success = hookPlayerUpdateRidden(node);
+				} else if (transformedName.equals("com.github.alexthe666.iceandfire.entity.EntitySeaSerpent")) {
+					success = fixSerpentOnWorldSpawn(node);
 				}/* else if (transformedName.equals("net.minecraft.advancements.AdvancementRewards$Deserializer")) {
 					success = fixAdvancementRewards(node);
 				}*/ else {
@@ -344,6 +347,27 @@ public class AsmTransformer implements IClassTransformer {
 
 		// add the new instructions after the second ifeq
 		updateRidden.instructions.insert(secondIfeqInsn, callHook);
+		return true;
+	}
+
+	private boolean fixSerpentOnWorldSpawn(ClassNode node) throws NoSuchMethodException {
+		// EntityPlayer#updateRidden()
+		MethodNode updateRidden = findMethod(node, "onWorldSpawn");
+
+		// find that bipush 6 instruction!
+		AbstractInsnNode bipushInsn = updateRidden.instructions.getFirst();
+		while (bipushInsn != null &&
+				(bipushInsn.getOpcode() != Opcodes.BIPUSH ||
+				((IntInsnNode) bipushInsn).operand != 6)) {
+			bipushInsn = bipushInsn.getNext();
+		}
+		if (bipushInsn == null) {
+			ISeeDragons.logger.error("Failed to find second ifeq instruction in EntityPlayer#updateRidden");
+			return false;
+		}
+
+		// make that 6 a 7 ;)
+		((IntInsnNode) bipushInsn).operand = 7;
 		return true;
 	}
 
