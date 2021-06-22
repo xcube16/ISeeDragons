@@ -1,3 +1,26 @@
+/*
+MIT License
+
+Copyright (c) 2021 xcube16
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+ */
 package io.github.xcube16.iseedragons;
 
 import com.google.common.collect.BiMap;
@@ -14,7 +37,6 @@ import net.minecraft.item.crafting.CraftingManager;
 import net.minecraft.util.DamageSource;
 import net.minecraft.util.ResourceLocation;
 import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.MathHelper;
 import net.minecraft.world.World;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.common.config.Config;
@@ -36,27 +58,22 @@ import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
 import net.minecraftforge.fml.common.registry.EntityRegistry;
 import net.minecraftforge.fml.relauncher.ReflectionHelper;
 import net.minecraftforge.oredict.OreDictionary;
-import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import scala.collection.script.End;
 
 import javax.annotation.Nullable;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
-@Mod(modid= ISeeDragons.MODID, version = ISeeDragons.VERSION, acceptableRemoteVersions = "*", name = ISeeDragons.NAME)
+@Mod(modid = ISeeDragons.MODID, version = ISeeDragons.VERSION, acceptableRemoteVersions = "*", name = ISeeDragons.NAME)
 public class ISeeDragons {
-    public static final String MODID = "iseedragons";
-    public static final String NAME = "ISeeDragons";
-    public static final String VERSION = "0.12-SNAPSHOT";
-    public static final Logger logger = LogManager.getLogger(NAME);
+    public static final String MODID = ISD.MODID;
+    public static final String NAME = ISD.NAME;
+    public static final String VERSION = ISD.VERSION;
+    public static final Logger logger = ISD.logger;
 
+    @Mod.Instance(ISeeDragons.MODID)
     private static ISeeDragons instance;
 
     @Nullable // lazy init
@@ -81,15 +98,8 @@ public class ISeeDragons {
 
     private Map<Item, Float> extraUndeadDamage;
 
-    public ISeeDragons() {
-        if (instance == null) {
-            instance = this;
-        }
-    }
-
     @Mod.EventHandler
-    public void preinit(FMLPreInitializationEvent event)
-    {
+    public void preinit(FMLPreInitializationEvent event) {
         MinecraftForge.EVENT_BUS.register(this);
     }
 
@@ -129,37 +139,30 @@ public class ISeeDragons {
             }
         });
 
-        if(StaticConfig.preventTANAttackEntityEvent && Loader.isModLoaded("toughasnails"))
-        {
+        if (StaticConfig.preventTANAttackEntityEvent && Loader.isModLoaded("toughasnails")) {
             logger.info("Fixing TAN's attack entity event damage problem...");
             boolean found_listener = false;
             //Find the ThirstStatHandler in the event bus and remove it
             ConcurrentHashMap<Object, ArrayList<IEventListener>> listeners = ReflectionHelper.getPrivateValue(EventBus.class, MinecraftForge.EVENT_BUS, "listeners");
-            for(Map.Entry<Object, ArrayList<IEventListener>> listener_entry : listeners.entrySet())
-            {
-                if (listener_entry.getKey().getClass().getName().equals("toughasnails.handler.thirst.ThirstStatHandler"))
-                {
-                    found_listener=true;
+            for (Map.Entry<Object, ArrayList<IEventListener>> listener_entry : listeners.entrySet()) {
+                if (listener_entry.getKey().getClass().getName().equals("toughasnails.handler.thirst.ThirstStatHandler")) {
+                    found_listener = true;
                     //Create the FakeThirstStatHandler and send it the real one to use
-                    try 
-                    {
+                    try {
                         MinecraftForge.EVENT_BUS.register(new FakeThirstStatHandler(listener_entry.getKey()));
-                    } 
-                    catch (Exception e) 
-                    {
+                    } catch (Exception e) {
                         //If an exception is thrown, FakeThirstStatHandler never gets added to the event bus
-                        ISeeDragons.logger.error("Failed to initialize FakeThirstStatHandler");
+                        logger.error("Failed to initialize FakeThirstStatHandler");
                         e.printStackTrace();
                         break;
                     }
-                    
+
                     //Unregister the real ThirstStatHandler
                     MinecraftForge.EVENT_BUS.unregister(listener_entry.getKey());
                     break;
                 }
             }
-            if(!found_listener)
-            {
+            if (!found_listener) {
                 logger.error("Could not find toughasnails ThirstStatHandler event listener");
                 return;
             }
@@ -235,7 +238,7 @@ public class ISeeDragons {
     @SubscribeEvent
     public void lightningStruckEntity(EntityStruckByLightningEvent event) {
         //Prevent lightning from destroying items
-        if(StaticConfig.disableLightningItemDamage && (event.getEntity() instanceof EntityItem))
+        if (StaticConfig.disableLightningItemDamage && (event.getEntity() instanceof EntityItem))
             event.setCanceled(true);
     }
 
@@ -342,7 +345,7 @@ public class ISeeDragons {
             Field regField = EntityRegistry.instance().getClass().getDeclaredField("entityClassRegistrations");
             regField.setAccessible(true);
             BiMap<Class<? extends Entity>, EntityRegistry.EntityRegistration> reg =
-                    (BiMap<Class<? extends Entity>, EntityRegistry.EntityRegistration>)regField.get(EntityRegistry.instance());
+                    (BiMap<Class<? extends Entity>, EntityRegistry.EntityRegistration>) regField.get(EntityRegistry.instance());
             for (EntityRegistry.EntityRegistration entity : reg.values()) {
                 //logger.info(entity.getRegistryName().toString());
                 Optional boost = this.getRenderBoost(entity.getRegistryName());
@@ -403,8 +406,7 @@ public class ISeeDragons {
                 world.playEvent(2001, pos, Block.getStateId(state));
             }
 
-            if (shouldDrop)
-            {
+            if (shouldDrop) {
                 block.dropBlockAsItem(world, pos, state, 0);
             }
             world.setBlockState(pos, Blocks.AIR.getDefaultState(), 3);
@@ -426,7 +428,7 @@ public class ISeeDragons {
             prey.attackEntityFrom(
                     DamageSource.causeMobDamage(dragon),
                     prey instanceof EntityPlayer ? 17.0F :
-                            (float)dragon.getEntityAttribute(SharedMonsterAttributes.ATTACK_DAMAGE).getAttributeValue() * 4.0F);
+                            (float) dragon.getEntityAttribute(SharedMonsterAttributes.ATTACK_DAMAGE).getAttributeValue() * 4.0F);
         } else if (animTick > 60) {
             // animTick should always be >= 56, but lets leave a sanity check
             // in case someone messes with the ASM code
@@ -543,7 +545,6 @@ public class ISeeDragons {
                 }
 
             } catch (Exception ex) {
-                ex.printStackTrace();
                 logger.error("Failed to check dragon state", ex);
             }
         } else if (isCyclops(dragon)) {

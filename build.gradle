@@ -14,7 +14,7 @@ apply plugin: 'net.minecraftforge.gradle'
 apply plugin: 'eclipse'
 apply plugin: 'maven-publish'
 
-version = "0.13-SNAPSHOT"
+version = "1.0-SNAPSHOT"
 group= "io.github.xcube16.iseedragons" // http://maven.apache.org/guides/mini/guide-naming-conventions.html
 archivesBaseName = "ISeeDragons"
 
@@ -84,7 +84,7 @@ dependencies {
 
 jar {
     manifest {
-        attributes 'FMLCorePlugin': 'io.github.xcube16.iseedragons.FMLCorePlugin'
+        attributes 'FMLCorePlugin': 'io.github.xcube16.iseedragons.asm.FMLCorePlugin'
         attributes 'FMLCorePluginContainsFMLMod': true
     }
 }

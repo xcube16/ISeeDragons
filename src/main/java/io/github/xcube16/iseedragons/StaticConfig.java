@@ -1,3 +1,26 @@
+/*
+MIT License
+
+Copyright (c) 2021 xcube16
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+ */
 package io.github.xcube16.iseedragons;
 
 import net.minecraftforge.common.config.Config;
@@ -5,25 +28,18 @@ import net.minecraftforge.common.config.Config;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-// ugly global state...  :(
 @Config(modid = ISeeDragons.MODID)
 public class StaticConfig {
 
-    @Config.Comment("A list of entities and view distences ")
+    @Config.Comment("A list of entities and view distances ")
     @Config.Name("EntityDistanceOverrides")
     public static Map<String, Integer> distanceOverrides;
 
-    @Config.Comment("The default % chance for a block to drop items when smashed by a dragon")
+    @Config.Comment("The default % chance for a block to drop items when smashed by a dragon (requires ASM.DragonLag)")
     public static Integer defaultDropChance = 100;
 
-    @Config.Comment("The default % chance for a block to play sound and particle effects when smashed by a dragon")
+    @Config.Comment("The default % chance for a block to play sound and particle effects when smashed by a dragon (requires ASM.DragonLag)")
     public static Integer defaultEffectChance = 100;
-
-    @Config.Comment("Disables advancements (can be used to stop log spam when recipes are tweaked)")
-    public static boolean disableAdvancements = false;
-
-    @Config.Comment("Mutes errors caused by broken advancements (can be used to stop log spam when recipes are tweaked)")
-    public static boolean muteErroringAdvancements = false;
 
     @Config.Comment("Prevents lightning strikes from destroying items")
     public static boolean disableLightningItemDamage = false;
@@ -32,11 +48,11 @@ public class StaticConfig {
     @Config.RequiresMcRestart
     public static boolean preventTANAttackEntityEvent = true;
 
-    @Config.Comment("A list of block drop % chances")
+    @Config.Comment("A list of block drop % chances (requires ASM.DragonLag)")
     @Config.Name("DropChances")
     public static Map<String, Integer> dropChances;
 
-    @Config.Comment("A list of block effect % chances")
+    @Config.Comment("A list of block effect % chances (requires ASM.DragonLag)")
     @Config.Name("EffectChances")
     public static Map<String, Integer> effectChances;
 
@@ -47,6 +63,41 @@ public class StaticConfig {
     @Config.Comment("A list of items that need to do extra damage to undead enemies")
     @Config.Name("ExtraUndeadDamage")
     public static Map<String, Float> extraUndeadDamage;
+
+    @Config.Comment("Core modifications")
+    @Config.Name("ASM")
+    public static ASM asm = new ASM();
+
+    public static final class ASM {
+
+        @Config.Comment("Patches EntityDragonBase to help with lag")
+        @Config.Name("DragonLag")
+        public boolean dragonLag = true;
+
+        @Config.Comment("Patches ItemModAxe to allow axes to work on modded wood blocks")
+        @Config.Name("IceAndFireAxeFix")
+        public boolean iceAndFireAxeFix = true;
+
+        @Config.Comment("Mutes harmless noisy warnings/errors in the RLCraft modpack")
+        @Config.Name("STFU")
+        public boolean stfu = true;
+
+        @Config.Comment("Prevents Myrmex eggs from being duped when broken with multiple damage events in one tick")
+        @Config.Name("FixMyrmexDupeBug")
+        public boolean fixMyrmexDupeBug = true;
+
+        @Config.Comment("Removes everything from the vanilla achievements system! Can be used to stop log spam when recipes are tweaked.")
+        @Config.Name("NukeAchievements")
+        public boolean nukeAchievements = false;
+
+        @Config.Comment("Fixes a bug and allows the last Ice and Fire Sea Serpent type to spawn")
+        @Config.Name("FixSeaSerpentSpawn")
+        public boolean fixSeaSerpentSpawn = true;
+
+        @Config.Comment("Part of a complex fix to prevent players from using dismount (pressing 'shift') to escape a dragon's jaws")
+        @Config.Name("DragonDismountFix")
+        public boolean dragonDismountFix = true;
+    }
 
     static {
         distanceOverrides = new LinkedHashMap<>();
