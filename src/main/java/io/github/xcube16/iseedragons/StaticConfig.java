@@ -64,6 +64,10 @@ public class StaticConfig {
     @Config.Name("ExtraUndeadDamage")
     public static Map<String, Float> extraUndeadDamage;
 
+    @Config.Comment("A list of dimension IDs that Ice and Fire should NOT generate ANY structures in.")
+    @Config.Name("iceandfire_structure_dim_blacklist")
+    public static int[] generatorBlacklist;
+
     @Config.Comment("Core modifications")
     @Config.Name("ASM")
     public static ASM asm = new ASM();
@@ -97,6 +101,10 @@ public class StaticConfig {
         @Config.Comment("Part of a complex fix to prevent players from using dismount (pressing 'shift') to escape a dragon's jaws")
         @Config.Name("DragonDismountFix")
         public boolean dragonDismountFix = true;
+
+        @Config.Comment("Adds a hook to Ice and Fire's StructureGenerator so we can cancel generation in some worlds")
+        @Config.Name("HookStructureGenerator")
+        public boolean hookStructureGenerator = true;
     }
 
     static {
@@ -148,5 +156,7 @@ public class StaticConfig {
 
         extraUndeadDamage = new LinkedHashMap<>();
         extraUndeadDamage.put("minecraft:bedrock", 100.0f);
+
+        generatorBlacklist = new int[]{111};
     }
 }

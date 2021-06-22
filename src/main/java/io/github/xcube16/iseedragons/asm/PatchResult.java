@@ -54,7 +54,7 @@ public class PatchResult {
      * @return True if the {@link org.objectweb.asm.tree.ClassNode} has been mutated
      */
     public boolean isMutated() {
-        return this.flags < 1;
+        return this.flags >= 0;
     }
 
     public PatchResult add(PatchResult other) {

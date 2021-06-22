@@ -53,6 +53,7 @@ public class ISeeDragonsTransformer implements IClassTransformer {
         addPatcher(PatchNukeAdvancements.class);
         addPatcher(PatchSerpentSpawning.class);
         addPatcher(PatchDragonDismount.class);
+        addPatcher(HookStructureGenerator.class);
     }
 
     @Override

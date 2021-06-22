@@ -38,6 +38,8 @@ import net.minecraft.util.DamageSource;
 import net.minecraft.util.ResourceLocation;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
+import net.minecraft.world.chunk.IChunkProvider;
+import net.minecraft.world.gen.IChunkGenerator;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.common.config.Config;
 import net.minecraftforge.common.config.ConfigManager;
@@ -463,6 +465,18 @@ public class ISeeDragons {
         return Arrays.stream(craftable)
                 .filter(item -> CraftingManager.getRecipe(item) != null)
                 .toArray(ResourceLocation[]::new);
+    }
+
+    /**
+     * Called by {@link com.github.alexthe666.iceandfire.event.StructureGenerator#generate(Random, int, int, World, IChunkGenerator, IChunkProvider)}
+     * to see if Ice and Fire structures are allowed to generate in the given world/dimension.
+     * 
+     * @param world The world that the structure might be generated in
+     * @return True if generation should be allowed to continue
+     */
+    public static boolean iceAndFireGenerateHook(World world) {
+        return !Arrays.stream(StaticConfig.generatorBlacklist)
+                .anyMatch(i -> i == world.provider.getDimension());
     }
 
     private void registerEgg(Item egg) {
