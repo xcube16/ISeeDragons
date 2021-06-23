@@ -68,6 +68,12 @@ public class StaticConfig {
     @Config.Name("iceandfire_structure_dim_blacklist")
     public static int[] generatorBlacklist;
 
+    @Config.Comment("Minimum brightness override (can be negative)")
+    public static float minBrightness = 0.0f;
+
+    @Config.Comment("Maximum brightness override (can be negative)")
+    public static float maxBrightness = 1.0f;
+
     @Config.Comment("Core modifications")
     @Config.Name("ASM")
     public static ASM asm = new ASM();

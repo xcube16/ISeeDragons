@@ -14,7 +14,7 @@ apply plugin: 'net.minecraftforge.gradle'
 apply plugin: 'eclipse'
 apply plugin: 'maven-publish'
 
-version = "1.0-SNAPSHOT"
+version = "1.1-SNAPSHOT"
 group= "io.github.xcube16.iseedragons" // http://maven.apache.org/guides/mini/guide-naming-conventions.html
 archivesBaseName = "ISeeDragons"
 
@@ -30,7 +30,7 @@ minecraft {
     mappings channel: 'snapshot', version: '20171003-1.12'
     // makeObfSourceJar = false // an Srg named sources jar is made by default. uncomment this to disable.
 
-    // accessTransformer = file('src/main/resources/META-INF/accesstransformer.cfg')
+    accessTransformer = file('src/main/resources/META-INF/accesstransformer.cfg')
 
     // Default run configurations.
     // These can be tweaked, removed, or duplicated as needed.
@@ -86,6 +86,7 @@ jar {
     manifest {
         attributes 'FMLCorePlugin': 'io.github.xcube16.iseedragons.asm.FMLCorePlugin'
         attributes 'FMLCorePluginContainsFMLMod': true
+        attributes 'FMLAT': 'accesstransformer.cfg'
     }
 }
 

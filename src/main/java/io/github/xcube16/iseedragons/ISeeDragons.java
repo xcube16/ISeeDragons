@@ -26,6 +26,9 @@ package io.github.xcube16.iseedragons;
 import com.google.common.collect.BiMap;
 import net.minecraft.block.Block;
 import net.minecraft.block.state.IBlockState;
+import net.minecraft.client.gui.GuiButton;
+import net.minecraft.client.gui.GuiOptionSlider;
+import net.minecraft.client.settings.GameSettings;
 import net.minecraft.entity.*;
 import net.minecraft.entity.item.EntityItem;
 import net.minecraft.entity.passive.EntityTameable;
@@ -40,6 +43,7 @@ import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
 import net.minecraft.world.chunk.IChunkProvider;
 import net.minecraft.world.gen.IChunkGenerator;
+import net.minecraftforge.client.event.GuiScreenEvent;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.common.config.Config;
 import net.minecraftforge.common.config.ConfigManager;
@@ -340,6 +344,9 @@ public class ISeeDragons {
             }
         }
         this.extraUndeadDamage = extraUndeadDamage;
+
+        GameSettings.Options.GAMMA.valueMin = StaticConfig.minBrightness;
+        GameSettings.Options.GAMMA.valueMax = StaticConfig.maxBrightness;
 
         logger.info("Scanning for Ice and Fire dragons...");
         boolean foundOne = false;
