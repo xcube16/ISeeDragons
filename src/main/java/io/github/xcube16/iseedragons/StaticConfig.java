@@ -74,10 +74,15 @@ public class StaticConfig {
     @Config.Comment("Maximum brightness override (can be negative)")
     public static float maxBrightness = 1.0f;
 
+    @Config.Comment("Entities that can NOT be stoned by the Gorgon/Gorgon Head")
+    @Config.Name("unstoneable_entities")
+    public static String[] unstoneableEntitys;
+
     @Config.Comment("Core modifications")
     @Config.Name("ASM")
     public static ASM asm = new ASM();
 
+    @Config.RequiresMcRestart
     public static final class ASM {
 
         @Config.Comment("Patches EntityDragonBase to help with lag")
@@ -111,6 +116,14 @@ public class StaticConfig {
         @Config.Comment("Adds a hook to Ice and Fire's StructureGenerator so we can cancel generation in some worlds")
         @Config.Name("HookStructureGenerator")
         public boolean hookStructureGenerator = true;
+
+        @Config.Comment("Adds a hook to blacklist some entities from being stoned by the Gorgon/Gorgon Head")
+        @Config.Name("HookGorgonHead")
+        public boolean hookGorgonHead = true;
+
+        @Config.Comment("Patches the dummy from MmmMmmMmmMmm (yes, thats a mod name) to show damage and not hearts")
+        @Config.Name("PatchMmmMmm")
+        public boolean patchMmmMmm = true;
     }
 
     static {
@@ -164,5 +177,7 @@ public class StaticConfig {
         extraUndeadDamage.put("minecraft:bedrock", 100.0f);
 
         generatorBlacklist = new int[]{111};
+
+        unstoneableEntitys = new String[]{"minecraft:wither", "iceandfire:gorgon"};
     }
 }

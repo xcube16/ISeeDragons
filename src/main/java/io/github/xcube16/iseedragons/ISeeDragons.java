@@ -26,8 +26,6 @@ package io.github.xcube16.iseedragons;
 import com.google.common.collect.BiMap;
 import net.minecraft.block.Block;
 import net.minecraft.block.state.IBlockState;
-import net.minecraft.client.gui.GuiButton;
-import net.minecraft.client.gui.GuiOptionSlider;
 import net.minecraft.client.settings.GameSettings;
 import net.minecraft.entity.*;
 import net.minecraft.entity.item.EntityItem;
@@ -43,7 +41,6 @@ import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
 import net.minecraft.world.chunk.IChunkProvider;
 import net.minecraft.world.gen.IChunkGenerator;
-import net.minecraftforge.client.event.GuiScreenEvent;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.common.config.Config;
 import net.minecraftforge.common.config.ConfigManager;
@@ -101,6 +98,7 @@ public class ISeeDragons {
     // static is kind of ugly, but so are ASM hooks and hacks :P
     private static Map<Block, Integer> dropChances;
     private static Map<Block, Integer> effectChances;
+    private static Set<ResourceLocation> unstoneableEntitys = new HashSet<>();
 
     private Map<Item, Float> extraUndeadDamage;
 
@@ -345,8 +343,20 @@ public class ISeeDragons {
         }
         this.extraUndeadDamage = extraUndeadDamage;
 
+        if (StaticConfig.minBrightness > StaticConfig.maxBrightness) {
+            logger.error("Min and max brightness are mixed up!");
+            float min = StaticConfig.minBrightness;
+            StaticConfig.minBrightness = StaticConfig.maxBrightness;
+            StaticConfig.maxBrightness = min;
+        }
+
         GameSettings.Options.GAMMA.valueMin = StaticConfig.minBrightness;
         GameSettings.Options.GAMMA.valueMax = StaticConfig.maxBrightness;
+
+        unstoneableEntitys.clear();
+        for (String str : StaticConfig.unstoneableEntitys) {
+            unstoneableEntitys.add(new ResourceLocation(str));
+        }
 
         logger.info("Scanning for Ice and Fire dragons...");
         boolean foundOne = false;
@@ -484,6 +494,22 @@ public class ISeeDragons {
     public static boolean iceAndFireGenerateHook(World world) {
         return !Arrays.stream(StaticConfig.generatorBlacklist)
                 .anyMatch(i -> i == world.provider.getDimension());
+    }
+
+    /**
+     * Called by {@link com.github.alexthe666.iceandfire.item.ItemGorgonHead} to see
+     * if an entity can get stoned.
+     *
+     * @return True if the entity can be turned to stone
+     */
+    public static boolean canStoneHook(Entity entity) {
+        @Nullable
+        ResourceLocation id = EntityList.getKey(entity);
+        if (id == null) {
+            return false;
+        }
+
+        return !unstoneableEntitys.contains(id);
     }
 
     private void registerEgg(Item egg) {

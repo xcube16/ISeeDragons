@@ -30,7 +30,7 @@ import java.util.Map;
 
 @IFMLLoadingPlugin.MCVersion("1.12.2")
 @IFMLLoadingPlugin.TransformerExclusions(value = {"io.github.xcube16.iseedragons"})
-@IFMLLoadingPlugin.SortingIndex(1001)
+@IFMLLoadingPlugin.SortingIndex(1500)
 public class FMLCorePlugin implements IFMLLoadingPlugin {
 
     @Override
