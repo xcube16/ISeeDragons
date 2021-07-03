@@ -13,7 +13,7 @@ import org.objectweb.asm.tree.*;
 public class HookGorgonHead {
 
     @Patch(target = "com.github.alexthe666.iceandfire.item.ItemGorgonHead$1",
-    desc = "Hook ItemGorganHead$1 to stop some entities from getting stoned")
+            desc = "Hook ItemGorganHead$1 to stop some entities from getting stoned")
     public static PatchResult hookItemGorgon(ISeeDragonsTransformer tweaker, ClassNode node) throws NoSuchMethodException {
         MethodNode apply = PatchHelper.findMethod(node, "apply", "(Lnet/minecraft/entity/Entity;)Z");
 

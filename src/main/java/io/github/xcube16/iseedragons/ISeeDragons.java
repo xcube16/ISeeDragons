@@ -98,7 +98,7 @@ public class ISeeDragons {
     // static is kind of ugly, but so are ASM hooks and hacks :P
     private static Map<Block, Integer> dropChances;
     private static Map<Block, Integer> effectChances;
-    private static Set<ResourceLocation> unstoneableEntitys = new HashSet<>();
+    private static final Set<ResourceLocation> unstoneableEntitys = new HashSet<>();
 
     private Map<Item, Float> extraUndeadDamage;
 
@@ -115,7 +115,7 @@ public class ISeeDragons {
 
         logger.info("Fixing sea serpent armor repair...");
         try {
-            Class enumSeaSerpent = Class.forName("com.github.alexthe666.iceandfire.enums.EnumSeaSerpent");
+            Class<?> enumSeaSerpent = Class.forName("com.github.alexthe666.iceandfire.enums.EnumSeaSerpent");
             Object[] values = (Object[]) enumSeaSerpent.getDeclaredMethod("values").invoke(null);
             Field armorMaterialField = enumSeaSerpent.getDeclaredField("armorMaterial");
             Field scaleField = enumSeaSerpent.getDeclaredField("scale");
@@ -133,7 +133,6 @@ public class ISeeDragons {
         logger.info("Fixing tools/armor repair listed in config...");
         StaticConfig.repairFixes.forEach((toolId, repairItem) -> {
             String[] split = repairItem.split(",");
-            int meta = 0;
             if (split.length == 1) {
                 this.fixToolRepair(toolId, split[0], 0);
             } else if (split.length == 2) {
@@ -168,7 +167,6 @@ public class ISeeDragons {
             }
             if (!found_listener) {
                 logger.error("Could not find toughasnails ThirstStatHandler event listener");
-                return;
             }
         }
     }
@@ -257,14 +255,14 @@ public class ISeeDragons {
         //OreDictionary.registerOre("toolAxe", Item.getByNameOrId("iceandfire:dragonsteel_ice_axe"));
 
         logger.info("Fixing broken Ice and Fire OreDictionary entries. (all that ore dictionary spam that you can now ignore!)");
-        OreDictionary.registerOre("ingotSilver",   Item.getByNameOrId("iceandfire:silver_ingot"));
-        OreDictionary.registerOre("nuggetSilver",  Item.getByNameOrId("iceandfire:silver_nugget"));
-        OreDictionary.registerOre("oreSilver",     Item.getByNameOrId("iceandfire:silver_ore"));
-        OreDictionary.registerOre("blockSilver",   Item.getByNameOrId("iceandfire:silver_block"));
-        OreDictionary.registerOre("gemSapphire",   Item.getByNameOrId("iceandfire:sapphire_gem"));
-        OreDictionary.registerOre("oreSapphire",   Item.getByNameOrId("iceandfire:sapphire_ore"));
+        OreDictionary.registerOre("ingotSilver", Item.getByNameOrId("iceandfire:silver_ingot"));
+        OreDictionary.registerOre("nuggetSilver", Item.getByNameOrId("iceandfire:silver_nugget"));
+        OreDictionary.registerOre("oreSilver", Item.getByNameOrId("iceandfire:silver_ore"));
+        OreDictionary.registerOre("blockSilver", Item.getByNameOrId("iceandfire:silver_block"));
+        OreDictionary.registerOre("gemSapphire", Item.getByNameOrId("iceandfire:sapphire_gem"));
+        OreDictionary.registerOre("oreSapphire", Item.getByNameOrId("iceandfire:sapphire_ore"));
         OreDictionary.registerOre("blockSapphire", Item.getByNameOrId("iceandfire:sapphire_block"));
-        OreDictionary.registerOre("boneWither",    Item.getByNameOrId("iceandfire:witherbone"));
+        OreDictionary.registerOre("boneWither", Item.getByNameOrId("iceandfire:witherbone"));
         /*OreDictionary.registerOre("woolBlock", new ItemStack(Blocks.field_150325_L, 1, 32767));
         OreDictionary.registerOre("foodMeat", Items.field_151076_bf);
         OreDictionary.registerOre("foodMeat", Items.field_151077_bg);
@@ -276,10 +274,10 @@ public class ISeeDragons {
         OreDictionary.registerOre("foodMeat", Items.field_179557_bn);
         OreDictionary.registerOre("foodMeat", Items.field_179558_bo);
         OreDictionary.registerOre("foodMeat", Items.field_179559_bp);*/
-        OreDictionary.registerOre("boneWithered",  Item.getByNameOrId("iceandfire:witherbone"));
-        OreDictionary.registerOre("boneDragon",    Item.getByNameOrId("iceandfire:dragonbone"));
+        OreDictionary.registerOre("boneWithered", Item.getByNameOrId("iceandfire:witherbone"));
+        OreDictionary.registerOre("boneDragon", Item.getByNameOrId("iceandfire:dragonbone"));
         try {
-            Class enumSeaSerpent = Class.forName("com.github.alexthe666.iceandfire.enums.EnumSeaSerpent");
+            Class<?> enumSeaSerpent = Class.forName("com.github.alexthe666.iceandfire.enums.EnumSeaSerpent");
             Object[] values = (Object[]) enumSeaSerpent.getDeclaredMethod("values").invoke(null);
             Field scaleField = enumSeaSerpent.getDeclaredField("scale");
             for (Object serpent : values) {
@@ -367,7 +365,7 @@ public class ISeeDragons {
                     (BiMap<Class<? extends Entity>, EntityRegistry.EntityRegistration>) regField.get(EntityRegistry.instance());
             for (EntityRegistry.EntityRegistration entity : reg.values()) {
                 //logger.info(entity.getRegistryName().toString());
-                Optional boost = this.getRenderBoost(entity.getRegistryName());
+                Optional<Integer> boost = this.getRenderBoost(entity.getRegistryName());
                 if (boost.isPresent()) {
                     foundOne = true;
                     logger.info("Fixed " + entity.getRegistryName() + " tracking distance");
@@ -463,7 +461,7 @@ public class ISeeDragons {
      * (!player.world.isRemote && player.isSneaking() && player.isRiding())
      * to see if the player is allowed to dismount. Canceling Forge's event causes updateRidden() to
      * not be called when a player is holding shift.
-     *
+     * <p>
      * note: This does NOT get called when a player mounts another entity.
      * (ex: right-clicking a boat to escape a minecart)
      *
@@ -487,13 +485,13 @@ public class ISeeDragons {
     /**
      * Called by {@link com.github.alexthe666.iceandfire.event.StructureGenerator#generate(Random, int, int, World, IChunkGenerator, IChunkProvider)}
      * to see if Ice and Fire structures are allowed to generate in the given world/dimension.
-     * 
+     *
      * @param world The world that the structure might be generated in
      * @return True if generation should be allowed to continue
      */
     public static boolean iceAndFireGenerateHook(World world) {
-        return !Arrays.stream(StaticConfig.generatorBlacklist)
-                .anyMatch(i -> i == world.provider.getDimension());
+        return Arrays.stream(StaticConfig.generatorBlacklist)
+                .noneMatch(i -> i == world.provider.getDimension());
     }
 
     /**
@@ -513,10 +511,10 @@ public class ISeeDragons {
     }
 
     private void registerEgg(Item egg) {
-        OreDictionary.registerOre("listAllEgg",    new ItemStack(egg, 1, 32767));
-        OreDictionary.registerOre("objectEgg",     new ItemStack(egg, 1, 32767));
-        OreDictionary.registerOre("bakingEgg",     new ItemStack(egg, 1, 32767));
-        OreDictionary.registerOre("egg",           new ItemStack(egg, 1, 32767));
+        OreDictionary.registerOre("listAllEgg", new ItemStack(egg, 1, 32767));
+        OreDictionary.registerOre("objectEgg", new ItemStack(egg, 1, 32767));
+        OreDictionary.registerOre("bakingEgg", new ItemStack(egg, 1, 32767));
+        OreDictionary.registerOre("egg", new ItemStack(egg, 1, 32767));
         OreDictionary.registerOre("ingredientEgg", new ItemStack(egg, 1, 32767));
         OreDictionary.registerOre("foodSimpleEgg", new ItemStack(egg, 1, 32767));
     }
@@ -682,7 +680,7 @@ public class ISeeDragons {
 
         return id.getResourceDomain().equals("iceandfire") && (
                 id.getResourcePath().equals("icedragon") ||
-                id.getResourcePath().equals("firedragon"));
+                        id.getResourcePath().equals("firedragon"));
     }
 
     private boolean isCyclops(Entity entity) {
