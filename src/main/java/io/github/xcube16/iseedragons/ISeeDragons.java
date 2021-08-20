@@ -26,7 +26,6 @@ package io.github.xcube16.iseedragons;
 import com.google.common.collect.BiMap;
 import net.minecraft.block.Block;
 import net.minecraft.block.state.IBlockState;
-import net.minecraft.client.settings.GameSettings;
 import net.minecraft.entity.*;
 import net.minecraft.entity.item.EntityItem;
 import net.minecraft.entity.passive.EntityTameable;
@@ -52,6 +51,7 @@ import net.minecraftforge.event.entity.living.LivingHurtEvent;
 import net.minecraftforge.fml.client.event.ConfigChangedEvent;
 import net.minecraftforge.fml.common.Loader;
 import net.minecraftforge.fml.common.Mod;
+import net.minecraftforge.fml.common.SidedProxy;
 import net.minecraftforge.fml.common.event.FMLPostInitializationEvent;
 import net.minecraftforge.fml.common.event.FMLPreInitializationEvent;
 import net.minecraftforge.fml.common.eventhandler.EventBus;
@@ -78,6 +78,10 @@ public class ISeeDragons {
 
     @Mod.Instance(ISeeDragons.MODID)
     private static ISeeDragons instance;
+
+    @SidedProxy(clientSide = "io.github.xcube16.iseedragons.client.ClientProxy",
+            serverSide = "io.github.xcube16.iseedragons.DefaultProxy")
+    private static DefaultProxy proxy;
 
     @Nullable // lazy init
     private Method dragonSetSleeping;
@@ -347,9 +351,7 @@ public class ISeeDragons {
             StaticConfig.minBrightness = StaticConfig.maxBrightness;
             StaticConfig.maxBrightness = min;
         }
-
-        GameSettings.Options.GAMMA.valueMin = StaticConfig.minBrightness;
-        GameSettings.Options.GAMMA.valueMax = StaticConfig.maxBrightness;
+        proxy.setBrightness(StaticConfig.minBrightness, StaticConfig.maxBrightness);
 
         unstoneableEntitys.clear();
         for (String str : StaticConfig.unstoneableEntitys) {
