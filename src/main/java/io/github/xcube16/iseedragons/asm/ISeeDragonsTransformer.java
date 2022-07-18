@@ -56,6 +56,7 @@ public class ISeeDragonsTransformer implements IClassTransformer {
         addPatcher(HookStructureGenerator.class);
         addPatcher(HookGorgonHead.class);
         addPatcher(PatchMmmMmm.class);
+        addPatcher(PatchStatueDupe.class);
     }
 
     @Override
